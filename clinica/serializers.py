@@ -16,7 +16,7 @@ from rest_framework import serializers
 from usuarios.models import Usuario
 from usuarios.permissions import es_personal_clinico
 
-from .constants import COLORES_CITA, DIAS_CRITICOS_VACUNA
+from .constants import COLORES_CITA, DIAS_CRITICOS_VACUNA, ESTADOS_CITA_CLINICOS, TRANSICIONES_CITA
 from .models import Cita, ControlVacuna, FichaClinica, Mascota, Tutor
 from .validators import normalizar_rut, validar_rut
 
@@ -216,17 +216,25 @@ class CitaSerializer(serializers.ModelSerializer):
             elif not veterinario.is_active:
                 errores["veterinario"] = "El veterinario seleccionado no se encuentra activo."
 
-        # Validación de permisos sobre estados clínicos cuando se edita vía PUT/PATCH
+        # Validación de máquina de estados y permisos clínicos cuando se edita vía PUT/PATCH
         request = self.context.get("request")
-        if (
-            request
-            and instancia is not None
-            and "estado" in attrs
-            and attrs["estado"] != instancia.estado
-            and attrs["estado"] in (Cita.Estado.EN_ATENCION, Cita.Estado.FINALIZADA)
-            and not es_personal_clinico(request.user)
-        ):
-            errores["estado"] = "Solo veterinarios o administradores pueden marcar una cita en atención o finalizada."
+        if instancia is not None and "estado" in attrs and attrs["estado"] != instancia.estado:
+            nuevo_estado = attrs["estado"]
+            destinos_validos = TRANSICIONES_CITA.get(instancia.estado, set())
+            if nuevo_estado not in destinos_validos:
+                etiqueta_nueva = Cita.Estado(nuevo_estado).label
+                errores["estado"] = (
+                    f"No se puede cambiar una cita de '{instancia.get_estado_display()}' a '{etiqueta_nueva}'."
+                )
+            elif nuevo_estado in ESTADOS_CITA_CLINICOS and request:
+                if not es_personal_clinico(request.user):
+                    errores["estado"] = (
+                        "Solo veterinarios o administradores pueden marcar una cita en atención o finalizada."
+                    )
+                elif request.user.rol == Usuario.Rol.VET and veterinario and veterinario.pk != request.user.pk:
+                    errores["estado"] = "Solo el veterinario asignado puede atender o finalizar esta cita."
+                elif nuevo_estado == Cita.Estado.EN_ATENCION and fecha and fecha != timezone.localdate():
+                    errores["estado"] = "La atención solo puede iniciarse el día de la cita."
 
         if errores:
             raise serializers.ValidationError(errores)

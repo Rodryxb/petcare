@@ -215,7 +215,11 @@ const PetCare = (() => {
           overlay.classList.add("d-none");
           toast("Pantalla desbloqueada.", "success");
         } catch (err) {
-          alerta.textContent = err.message || "PIN de desbloqueo incorrecto.";
+          if (err.payload && err.payload.sesion_cerrada) {
+            window.location.href = "/login/";
+            return;
+          }
+          alerta.textContent = (err.payload && err.payload.mensaje) || err.message || "PIN de desbloqueo incorrecto.";
           alerta.classList.remove("d-none");
           pinInput.value = "";
           pinInput.focus();

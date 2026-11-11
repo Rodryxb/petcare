@@ -148,7 +148,7 @@
               </button>
               {% endif %}
 
-              {% if puede_atender and cita.estado != 'FINALIZADA' and cita.estado != 'CANCELADA' %}
+              {% if puede_atender and cita.estado != 'EN_ATENCION' and cita.estado != 'FINALIZADA' and cita.estado != 'CANCELADA' %}
               <button type="button" class="btn btn-outline-success" onclick="cambiarEstadoCita({{ cita.id }}, 'EN_ATENCION')" title="Pasar a box de atención">
                 <i class="bi bi-play-fill"></i> Atender
               </button>

@@ -19,7 +19,7 @@
     </span>
   </div>
 
-  <button type="button" class="btn btn-pc-cyan btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoControl">
+  <button type="button" class="btn btn-pc-cyan btn-sm" onclick="abrirModalNuevoControl()">
     <i class="bi bi-plus-circle-fill me-1"></i>Programar Vacuna / Control
   </button>
 </div>
@@ -52,11 +52,21 @@
               <i class="bi bi-calendar-x me-1"></i>Venció: {{ c.fecha_proximo_vencimiento|date:"d/m/Y" }}
             </div>
           </div>
-          {% if puede_aplicar_vacuna %}
-          <button type="button" class="btn btn-sm btn-pc-emerald w-100 mt-1" onclick="marcarComoAplicada({{ c.id }})">
-            <i class="bi bi-check2-circle me-1"></i>Marcar como Aplicada Hoy
-          </button>
-          {% endif %}
+          <div class="d-flex gap-1 mt-1">
+            {% if puede_aplicar_vacuna %}
+            <button type="button" class="btn btn-sm btn-pc-emerald flex-grow-1" onclick="marcarComoAplicada({{ c.id }})">
+              <i class="bi bi-check2-circle me-1"></i>Aplicar Hoy
+            </button>
+            {% endif %}
+            <button type="button" class="btn btn-sm btn-outline-info" onclick="editarControlVacuna({{ c.id }})" title="Editar control">
+              <i class="bi bi-pencil-square"></i>
+            </button>
+            {% if puede_aplicar_vacuna %}
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarControlVacuna({{ c.id }}, '{{ c.nombre_producto|escapejs }}')" title="Eliminar control">
+              <i class="bi bi-trash3"></i>
+            </button>
+            {% endif %}
+          </div>
         </div>
         {% empty %}
         <div class="text-center py-4 text-secondary small">🎉 Sin vacunas vencidas.</div>
@@ -89,11 +99,21 @@
               <i class="bi bi-calendar-event me-1"></i>Vence: {{ c.fecha_proximo_vencimiento|date:"d/m/Y" }}
             </div>
           </div>
-          {% if puede_aplicar_vacuna %}
-          <button type="button" class="btn btn-sm btn-pc-emerald w-100 mt-1" onclick="marcarComoAplicada({{ c.id }})">
-            <i class="bi bi-check2-circle me-1"></i>Marcar como Aplicada Hoy
-          </button>
-          {% endif %}
+          <div class="d-flex gap-1 mt-1">
+            {% if puede_aplicar_vacuna %}
+            <button type="button" class="btn btn-sm btn-pc-emerald flex-grow-1" onclick="marcarComoAplicada({{ c.id }})">
+              <i class="bi bi-check2-circle me-1"></i>Aplicar Hoy
+            </button>
+            {% endif %}
+            <button type="button" class="btn btn-sm btn-outline-info" onclick="editarControlVacuna({{ c.id }})" title="Editar control">
+              <i class="bi bi-pencil-square"></i>
+            </button>
+            {% if puede_aplicar_vacuna %}
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarControlVacuna({{ c.id }}, '{{ c.nombre_producto|escapejs }}')" title="Eliminar control">
+              <i class="bi bi-trash3"></i>
+            </button>
+            {% endif %}
+          </div>
         </div>
         {% empty %}
         <div class="text-center py-4 text-secondary small">Sin vencimientos en los próximos 7 días.</div>
@@ -120,11 +140,21 @@
             <span class="badge text-bg-dark border border-success-subtle text-success">{{ c.get_tipo_display }}</span>
           </div>
           <div class="fw-semibold text-info small mb-2">{{ c.nombre_producto }}</div>
-          <div class="small text-secondary">
+          <div class="small text-secondary mb-2">
             <div><i class="bi bi-person me-1"></i>{{ c.mascota.tutor.nombre_completo }}</div>
             <div class="text-success fw-semibold mt-1">
               <i class="bi bi-check-circle me-1"></i>Próximo refuerzo: {{ c.fecha_proximo_vencimiento|date:"d/m/Y" }}
             </div>
+          </div>
+          <div class="d-flex justify-content-end gap-1 mt-1">
+            <button type="button" class="btn btn-sm btn-outline-info" onclick="editarControlVacuna({{ c.id }})" title="Editar control">
+              <i class="bi bi-pencil-square"></i>
+            </button>
+            {% if puede_aplicar_vacuna %}
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarControlVacuna({{ c.id }}, '{{ c.nombre_producto|escapejs }}')" title="Eliminar control">
+              <i class="bi bi-trash3"></i>
+            </button>
+            {% endif %}
           </div>
         </div>
         {% empty %}
@@ -135,15 +165,16 @@
   </div>
 </div>
 
-<!-- Modal: Programar Nuevo Control / Vacuna -->
+<!-- Modal: Programar / Editar Control / Vacuna -->
 <div class="modal fade" id="modalNuevoControl" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <form class="modal-content" onsubmit="crearControlVacuna(event)">
+    <form class="modal-content" id="form-control-vacuna" onsubmit="crearControlVacuna(event)">
       <div class="modal-header">
-        <h5 class="modal-title fw-bold text-white">Registrar Control / Vacuna</h5>
+        <h5 class="modal-title fw-bold text-white" id="modalControlTitulo">Registrar Control / Vacuna</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+        <input type="hidden" id="ctrl-id" value="" />
         <div id="control-alerta" class="alert alert-danger d-none small py-2"></div>
         <div class="row g-3">
           <div class="col-12">
@@ -190,6 +221,52 @@
 
 {% block extra_js %}
 <script>
+  let modalControlInst = null;
+  document.addEventListener("DOMContentLoaded", () => {
+    modalControlInst = new bootstrap.Modal(document.getElementById("modalNuevoControl"));
+  });
+
+  function abrirModalNuevoControl() {
+    document.getElementById("form-control-vacuna").reset();
+    document.getElementById("ctrl-id").value = "";
+    document.getElementById("modalControlTitulo").textContent = "Registrar Control / Vacuna";
+    document.getElementById("control-alerta").classList.add("d-none");
+    modalControlInst.show();
+  }
+
+  async function editarControlVacuna(controlId) {
+    try {
+      const c = await PetCare.apiFetch(`/api/controles-vacunas/${controlId}/`);
+      document.getElementById("ctrl-id").value = c.id;
+      document.getElementById("ctrl-mascota").value = String(c.mascota);
+      document.getElementById("ctrl-tipo").value = c.tipo;
+      document.getElementById("ctrl-producto").value = c.nombre_producto;
+      document.getElementById("ctrl-vencimiento").value = c.fecha_proximo_vencimiento || "";
+      const inputAplicacion = document.getElementById("ctrl-aplicacion");
+      if (inputAplicacion) {
+        inputAplicacion.value = c.fecha_aplicacion || "";
+      }
+      document.getElementById("modalControlTitulo").textContent = `Editar Control: ${c.nombre_producto}`;
+      document.getElementById("control-alerta").classList.add("d-none");
+      modalControlInst.show();
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+
+  async function eliminarControlVacuna(controlId, nombreProducto) {
+    if (!confirm(`¿Confirma eliminar el control "${nombreProducto}" de la base de datos?`)) {
+      return;
+    }
+    try {
+      await PetCare.apiFetch(`/api/controles-vacunas/${controlId}/`, { method: "DELETE" });
+      PetCare.toast(`Control "${nombreProducto}" eliminado de la base de datos.`, "success");
+      setTimeout(() => window.location.reload(), 550);
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+
   async function marcarComoAplicada(controlId) {
     try {
       const actualizado = await PetCare.apiFetch(`/api/controles-vacunas/${controlId}/aplicar/`, {
@@ -208,6 +285,7 @@
 
   async function crearControlVacuna(e) {
     e.preventDefault();
+    const ctrlId = document.getElementById("ctrl-id").value;
     const alerta = document.getElementById("control-alerta");
     alerta.classList.add("d-none");
 
@@ -223,8 +301,13 @@
     }
 
     try {
-      await PetCare.apiFetch("/api/controles-vacunas/", { method: "POST", body: payload });
-      PetCare.toast("Control registrado correctamente.", "success");
+      const url = ctrlId ? `/api/controles-vacunas/${ctrlId}/` : "/api/controles-vacunas/";
+      const method = ctrlId ? "PATCH" : "POST";
+      await PetCare.apiFetch(url, { method, body: payload });
+      PetCare.toast(
+        ctrlId ? "Control actualizado en la base de datos." : "Control registrado correctamente.",
+        "success"
+      );
       setTimeout(() => window.location.reload(), 600);
     } catch (err) {
       alerta.textContent = err.message;

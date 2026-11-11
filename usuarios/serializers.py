@@ -1,6 +1,8 @@
 """
 Serializadores para la gestión de Personal (Usuarios/Roles) y Registro de Asistencia.
 """
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -130,10 +132,16 @@ class UsuarioPersonalSerializer(serializers.ModelSerializer):
         return valor
 
     def validate(self, attrs):
-        if self.instance is None and not attrs.get("password"):
+        password = attrs.get("password")
+        if self.instance is None and not password:
             raise serializers.ValidationError(
                 {"password": "Debe asignar una contraseña inicial para el nuevo usuario."}
             )
+        if password:
+            try:
+                validate_password(password, user=self.instance)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError({"password": list(exc.messages)}) from exc
         return attrs
 
     def create(self, validated_data):

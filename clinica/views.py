@@ -21,6 +21,7 @@ from rest_framework.views import APIView
 from usuarios.decorators import personal_requerido
 from usuarios.models import Usuario
 from usuarios.permissions import (
+    EliminarSoloAdmin,
     EliminarSoloClinico,
     EsAdminOVeterinario,
     EsAutorFichaOAdmin,
@@ -143,7 +144,7 @@ class CitaViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = CitaSerializer
-    permission_classes = [IsAuthenticated, EsPersonalClinica]
+    permission_classes = [IsAuthenticated, EsPersonalClinica, EliminarSoloAdmin]
 
     def get_queryset(self):
         qs = Cita.objects.select_related("mascota__tutor", "veterinario", "ficha").order_by(

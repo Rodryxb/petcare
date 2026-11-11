@@ -148,11 +148,11 @@ sudo -u "${APP_USER}" python3 -m venv "${VENV_DIR}"
 sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install --upgrade pip wheel
 sudo -u "${APP_USER}" "${VENV_DIR}/bin/pip" install -r "${PROJECT_DIR}/requirements.txt"
 
-echo "[5/7] Ejecutando makemigrations, migrate, seed_petcare y collectstatic..."
+echo "[5/7] Ejecutando migrate, seed_petcare, actualizar_vacunas_vencidas y collectstatic..."
 cd "${PROJECT_DIR}"
-sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" manage.py makemigrations --noinput
 sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" manage.py migrate --noinput
 sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" manage.py seed_petcare
+sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" manage.py actualizar_vacunas_vencidas
 sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" manage.py collectstatic --noinput --clear
 
 # ─── 5. Servicio systemd de Gunicorn (/etc/systemd/system/gunicorn.service) ─

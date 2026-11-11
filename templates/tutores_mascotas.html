@@ -99,6 +99,9 @@
                   <button type="button" class="btn btn-outline-info" onclick="editarTutor({{ t.id }})" title="Editar tutor">
                     <i class="bi bi-pencil-square"></i>
                   </button>
+                  <button type="button" class="btn btn-outline-danger" onclick="eliminarTutor({{ t.id }}, '{{ t.nombre_completo|escapejs }}')" title="Eliminar o dar de baja tutor">
+                    <i class="bi bi-trash3"></i>
+                  </button>
                 </div>
               </td>
             </tr>
@@ -158,6 +161,9 @@
                   </a>
                   <button type="button" class="btn btn-outline-info" onclick="editarMascota({{ m.id }})" title="Editar mascota">
                     <i class="bi bi-pencil-square"></i>
+                  </button>
+                  <button type="button" class="btn btn-outline-danger" onclick="eliminarMascota({{ m.id }}, '{{ m.nombre|escapejs }}')" title="Eliminar o dar de baja mascota">
+                    <i class="bi bi-trash3"></i>
                   </button>
                 </div>
               </td>
@@ -367,11 +373,14 @@
             <td>${mascotasHtml || '<span class="text-secondary small">Sin mascotas</span>'}</td>
             <td class="text-end">
               <div class="btn-group btn-group-sm">
-                <button type="button" class="btn btn-outline-success" onclick="abrirModalMascota(null, ${t.id})">
+                <button type="button" class="btn btn-outline-success" onclick="abrirModalMascota(null, ${t.id})" title="Agregar mascota a este tutor">
                   <i class="bi bi-plus-lg"></i> Mascota
                 </button>
-                <button type="button" class="btn btn-outline-info" onclick="editarTutor(${t.id})">
+                <button type="button" class="btn btn-outline-info" onclick="editarTutor(${t.id})" title="Editar tutor">
                   <i class="bi bi-pencil-square"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger" onclick="eliminarTutor(${t.id}, '${PetCare.escapeHtml(t.nombre_completo).replace(/'/g, "\\'")}')" title="Eliminar o dar de baja tutor">
+                  <i class="bi bi-trash3"></i>
                 </button>
               </div>
             </td>
@@ -410,11 +419,14 @@
             <td>${alergiaHtml}</td>
             <td class="text-end">
               <div class="btn-group btn-group-sm">
-                <a href="/fichas/mascota/${m.id}/" class="btn btn-outline-light">
+                <a href="/fichas/mascota/${m.id}/" class="btn btn-outline-light" title="Ver expediente clínico">
                   <i class="bi bi-file-earmark-medical"></i> Ficha
                 </a>
-                <button type="button" class="btn btn-outline-info" onclick="editarMascota(${m.id})">
+                <button type="button" class="btn btn-outline-info" onclick="editarMascota(${m.id})" title="Editar mascota">
                   <i class="bi bi-pencil-square"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger" onclick="eliminarMascota(${m.id}, '${PetCare.escapeHtml(m.nombre).replace(/'/g, "\\'")}')" title="Eliminar o dar de baja mascota">
+                  <i class="bi bi-trash3"></i>
                 </button>
               </div>
             </td>
@@ -552,6 +564,70 @@
     } catch (err) {
       alerta.textContent = err.message;
       alerta.classList.remove("d-none");
+    }
+  }
+
+  async function eliminarTutor(id, nombre) {
+    if (!confirm(`¿Confirma eliminar al tutor "${nombre}" de la base de datos?`)) {
+      return;
+    }
+    try {
+      await PetCare.apiFetch(`/api/tutores/${id}/`, { method: "DELETE" });
+      PetCare.toast(`Tutor "${nombre}" eliminado correctamente de la base de datos.`, "success");
+      await recargarDatosRecepcion(document.getElementById("buscador-recepcion").value.trim());
+    } catch (err) {
+      if (err.status === 409) {
+        if (
+          confirm(
+            `El tutor "${nombre}" tiene mascotas o registros clínicos asociados y está protegido para no perder historial médico.\n\n¿Desea darlo de baja (inactivar) en su lugar?`
+          )
+        ) {
+          try {
+            await PetCare.apiFetch(`/api/tutores/${id}/`, {
+              method: "PATCH",
+              body: { activo: false },
+            });
+            PetCare.toast(`Tutor "${nombre}" marcado como inactivo en la base de datos.`, "info");
+            await recargarDatosRecepcion(document.getElementById("buscador-recepcion").value.trim());
+          } catch (patchErr) {
+            PetCare.toast(patchErr.message, "danger");
+          }
+        }
+      } else {
+        PetCare.toast(err.message, "danger");
+      }
+    }
+  }
+
+  async function eliminarMascota(id, nombre) {
+    if (!confirm(`¿Confirma eliminar al paciente "${nombre}" de la base de datos?`)) {
+      return;
+    }
+    try {
+      await PetCare.apiFetch(`/api/mascotas/${id}/`, { method: "DELETE" });
+      PetCare.toast(`Paciente "${nombre}" eliminado correctamente de la base de datos.`, "success");
+      await recargarDatosRecepcion(document.getElementById("buscador-recepcion").value.trim());
+    } catch (err) {
+      if (err.status === 409) {
+        if (
+          confirm(
+            `El paciente "${nombre}" posee citas, fichas clínicas o vacunas registradas y está protegido para conservar su trazabilidad médica.\n\n¿Desea darle de baja (inactivar) en su lugar?`
+          )
+        ) {
+          try {
+            await PetCare.apiFetch(`/api/mascotas/${id}/`, {
+              method: "PATCH",
+              body: { activo: false },
+            });
+            PetCare.toast(`Paciente "${nombre}" dado de baja en la base de datos.`, "info");
+            await recargarDatosRecepcion(document.getElementById("buscador-recepcion").value.trim());
+          } catch (patchErr) {
+            PetCare.toast(patchErr.message, "danger");
+          }
+        }
+      } else {
+        PetCare.toast(err.message, "danger");
+      }
     }
   }
 </script>

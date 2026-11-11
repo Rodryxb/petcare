@@ -10,6 +10,7 @@ Reglas de acceso:
 import json
 from datetime import datetime
 
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, ProtectedError, Q
 from django.http import JsonResponse
@@ -41,6 +42,7 @@ def _parse_fecha(valor: str | None):
 def verificar_pin_view(request):
     """
     Verifica el PIN de 4 dígitos para desbloquear la pantalla tras 5 minutos de inactividad.
+    Incluye límite de intentos fallidos en sesión para prevenir fuerza bruta.
     """
     try:
         data = json.loads(request.body.decode("utf-8"))
@@ -50,12 +52,32 @@ def verificar_pin_view(request):
     pin_ingresado = str(data.get("pin", "")).strip()
     usuario = request.user
     pin_correcto = getattr(usuario, "pin_seguridad", "1234") or "1234"
+    max_intentos = 5
 
     if pin_ingresado == pin_correcto:
+        request.session["pin_intentos_fallidos"] = 0
         return JsonResponse({"ok": True, "mensaje": "Sesión desbloqueada correctamente."})
 
+    intentos = int(request.session.get("pin_intentos_fallidos", 0)) + 1
+    request.session["pin_intentos_fallidos"] = intentos
+
+    if intentos >= max_intentos:
+        logout(request)
+        return JsonResponse(
+            {
+                "ok": False,
+                "sesion_cerrada": True,
+                "mensaje": "Demasiados intentos fallidos de PIN. Su sesión se ha cerrado por seguridad.",
+            },
+            status=403,
+        )
+
+    restantes = max_intentos - intentos
     return JsonResponse(
-        {"ok": False, "mensaje": "PIN incorrecto. Ingrese los 4 dígitos correctos."},
+        {
+            "ok": False,
+            "mensaje": f"PIN incorrecto. Intentos restantes antes de cerrar sesión: {restantes}.",
+        },
         status=400,
     )
 

@@ -427,10 +427,9 @@ class FichaClinica(ModeloConTimestamps):
             raise ValidationError({"cita": "La cita seleccionada pertenece a otra mascota."})
 
     def save(self, *args, **kwargs):
-        es_nueva = self._state.adding
         super().save(*args, **kwargs)
-        # Mantiene el peso de la mascota sincronizado con la última medición.
-        if es_nueva and self.peso_actual:
+        # Mantiene el peso de la mascota sincronizado con la última medición registrada.
+        if self.peso_actual:
             Mascota.objects.filter(pk=self.mascota_id).update(peso=self.peso_actual)
 
 

@@ -152,6 +152,8 @@ TEMPLATES REQUERIDOS:
 - **Cliente HTTP centralizado (`static/js/petcare.js`)**: Se encapsuló el envío automático del encabezado `X-CSRFToken` requerido por `SessionAuthentication` de DRF y el formateo de errores de validación por campo.
 - **Pre-detección de choque horario en vivo**: En `calendario_citas.html`, antes incluso de enviar el formulario al backend, la función `verificarSolapamientoEnVivo()` contrasta el rango elegido con los eventos cargados en FullCalendar y despliega una alerta visual inmediata si detecta superposición.
 - **Degradación elegante según rol**: En `ficha_clinica.html` y `recordatorios.html`, cuando ingresa un usuario con rol `RECEP`, los controles exclusivos de acto médico (`Emitir Ficha` y `Marcar como Aplicada`) se deshabilitan en la interfaz además de estar protegidos con HTTP 403 en la API.
+- **CRUD completo en templates (Creación, Lectura, Edición y Eliminación/Baja)**: En `tutores_mascotas.html`, `calendario_citas.html`, `ficha_clinica.html` y `recordatorios.html` se habilitaron acciones de edición y eliminación directa hacia PostgreSQL mediante `PATCH` y `DELETE`, ofreciendo dar de baja lógica (`activo=False`) cuando un registro clínico está protegido por `on_delete=models.PROTECT` (HTTP 409).
+- **Módulo de Personal, Asistencia (`AsistenciaPersonal`) y Bloqueo por Inactividad con PIN**: Se implementó `personal_usuarios.html` para gestión de usuarios/roles y registro diario de asistencia, junto con bloqueo automático a los 5 minutos de inactividad (`verificar_pin_view` con límite de intentos contra fuerza bruta), cierre de sesión a los 10 minutos y vista personalizada `404.html`.
 
 ---
 

@@ -75,7 +75,16 @@
             <div class="p-3 rounded-3" style="background: var(--pc-bg-main); border: 1px solid var(--pc-border);">
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="fw-bold text-info small">{{ f.fecha_registro|date:"d/m/Y H:i" }}</span>
-                <span class="pc-role-badge">Dr(a). {{ f.veterinario.get_full_name|default:f.veterinario.username }}</span>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="pc-role-badge">Dr(a). {{ f.veterinario.get_full_name|default:f.veterinario.username }}</span>
+                  {% if puede_editar_ficha %}
+                  {% if request.user.es_admin or f.veterinario_id == request.user.id %}
+                  <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" onclick="cargarFichaParaEdicion({{ f.id }})" title="Editar esta ficha clínica">
+                    <i class="bi bi-pencil-square"></i>
+                  </button>
+                  {% endif %}
+                  {% endif %}
+                </div>
               </div>
 
               <div class="d-flex gap-3 small text-secondary mb-2 pb-2 border-bottom border-secondary-subtle">
@@ -123,7 +132,7 @@
     <div class="pc-card">
       <div class="pc-card-header flex-wrap">
         <div>
-          <h2 class="h6 mb-0 fw-bold text-white">
+          <h2 class="h6 mb-0 fw-bold text-white" id="ficha-form-titulo">
             <i class="bi bi-file-earmark-plus text-success me-2"></i>Nueva Atención Clínica
           </h2>
           <small class="text-secondary">Al guardar se actualizará el peso del paciente y se finalizará la cita asociada</small>
@@ -138,6 +147,7 @@
       <form id="form-ficha-clinica" class="p-3 p-md-4" onsubmit="guardarFichaClinica(event)">
         <div id="ficha-alerta" class="alert alert-danger d-none small py-2"></div>
 
+        <input type="hidden" id="ficha-id" value="" />
         <input type="hidden" id="ficha-mascota" value="{{ mascota_actual.id }}" />
 
         <div class="row g-3 mb-3">
@@ -173,7 +183,7 @@
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-diagnostico" type="button" role="tab">
-              <i class="bi bi-clipboard2-Check me-1 text-warning"></i>2. Diagnóstico
+              <i class="bi bi-clipboard2-check me-1 text-warning"></i>2. Diagnóstico
             </button>
           </li>
           <li class="nav-item" role="presentation">
@@ -193,7 +203,7 @@
               </div>
               <div class="col-md-4">
                 <label class="form-label small text-secondary">Peso Actual (kg)</label>
-                <input type="number" step="0.01" min="0.01" id="ficha-peso" class="form-control" value="{{ mascota_actual.peso|default:'' }}" placeholder="Ej: 12.40" {% if not puede_editar_ficha %}disabled{% endif %} />
+                <input type="number" step="0.01" min="0.01" id="ficha-peso" class="form-control" value="{{ mascota_actual.peso|stringformat:'s'|default:'' }}" placeholder="Ej: 12.40" {% if not puede_editar_ficha %}disabled{% endif %} />
               </div>
               <div class="col-md-4">
                 <label class="form-label small text-secondary">Frecuencia Cardíaca (lpm)</label>
@@ -240,8 +250,11 @@
         </div>
 
         {% if puede_editar_ficha %}
-        <div class="d-flex justify-content-end mt-4 pt-3 border-top border-secondary-subtle">
-          <button type="submit" class="btn btn-pc-emerald px-4">
+        <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top border-secondary-subtle">
+          <button type="button" id="btn-cancelar-edicion-ficha" class="btn btn-outline-secondary d-none" onclick="cancelarEdicionFicha()">
+            Cancelar Edición
+          </button>
+          <button type="submit" id="btn-guardar-ficha" class="btn btn-pc-emerald px-4">
             <i class="bi bi-save2-fill me-2"></i>Emitir y Guardar Ficha Clínica
           </button>
         </div>
@@ -255,8 +268,44 @@
 
 {% block extra_js %}
 <script>
+  async function cargarFichaParaEdicion(fichaId) {
+    try {
+      const f = await PetCare.apiFetch(`/api/fichas-clinicas/${fichaId}/`);
+      document.getElementById("ficha-id").value = f.id;
+      document.getElementById("ficha-veterinario").value = String(f.veterinario);
+      document.getElementById("ficha-cita").value = f.cita ? String(f.cita) : "";
+      document.getElementById("ficha-temperatura").value = f.temperatura ?? "";
+      document.getElementById("ficha-peso").value = f.peso_actual ?? "";
+      document.getElementById("ficha-fc").value = f.frecuencia_cardiaca ?? "";
+      document.getElementById("ficha-anamnesis").value = f.anamnesis || "";
+      document.getElementById("ficha-diag-presuntivo").value = f.diagnostico_presuntivo || "";
+      document.getElementById("ficha-diag-definitivo").value = f.diagnostico_definitivo || "";
+      document.getElementById("ficha-tratamiento").value = f.tratamiento || "";
+      document.getElementById("ficha-receta").value = f.receta_medica || "";
+      document.getElementById("ficha-examenes").value = f.examenes_solicitados || "";
+
+      document.getElementById("ficha-form-titulo").innerHTML = `<i class="bi bi-pencil-square text-info me-2"></i>Editando Ficha Clínica #${f.id}`;
+      document.getElementById("btn-guardar-ficha").innerHTML = `<i class="bi bi-save2-fill me-2"></i>Actualizar Ficha #${f.id}`;
+      document.getElementById("btn-cancelar-edicion-ficha").classList.remove("d-none");
+      document.getElementById("ficha-alerta").classList.add("d-none");
+      document.getElementById("form-ficha-clinica").scrollIntoView({ behavior: "smooth" });
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+
+  function cancelarEdicionFicha() {
+    document.getElementById("form-ficha-clinica").reset();
+    document.getElementById("ficha-id").value = "";
+    document.getElementById("ficha-form-titulo").innerHTML = `<i class="bi bi-file-earmark-plus text-success me-2"></i>Nueva Atención Clínica`;
+    document.getElementById("btn-guardar-ficha").innerHTML = `<i class="bi bi-save2-fill me-2"></i>Emitir y Guardar Ficha Clínica`;
+    document.getElementById("btn-cancelar-edicion-ficha").classList.add("d-none");
+    document.getElementById("ficha-alerta").classList.add("d-none");
+  }
+
   async function guardarFichaClinica(e) {
     e.preventDefault();
+    const fichaId = document.getElementById("ficha-id").value;
     const alerta = document.getElementById("ficha-alerta");
     alerta.classList.add("d-none");
 
@@ -281,8 +330,13 @@
     };
 
     try {
-      await PetCare.apiFetch("/api/fichas-clinicas/", { method: "POST", body: payload });
-      PetCare.toast("Ficha clínica registrada exitosamente.", "success");
+      const url = fichaId ? `/api/fichas-clinicas/${fichaId}/` : "/api/fichas-clinicas/";
+      const method = fichaId ? "PATCH" : "POST";
+      await PetCare.apiFetch(url, { method, body: payload });
+      PetCare.toast(
+        fichaId ? "Ficha clínica actualizada en la base de datos." : "Ficha clínica registrada exitosamente.",
+        "success"
+      );
       setTimeout(() => window.location.reload(), 650);
     } catch (err) {
       alerta.textContent = err.message;
