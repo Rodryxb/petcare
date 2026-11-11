@@ -186,4 +186,4 @@ Actúa como un Ingeniero DevOps y Docente de Arquitectura de Software. Genera lo
 
 ### 4. Cómo se validó y mejoró el resultado
 - **Soporte IMDSv2 en AWS EC2**: El script `deploy_ec2.sh` solicita un token temporal IMDSv2 (`http://169.254.169.254/latest/api/token`) para descubrir automáticamente la IP pública de la instancia e inyectarla en `ALLOWED_HOSTS` y `CSRF_TRUSTED_ORIGINS`.
-- **Creación automática de `btree_gist` y semilla de datos**: Se incluyó `CREATE EXTENSION IF NOT EXISTS btree_gist;` en el bloque SQL de PostgreSQL y el comando idempotente `python manage.py seed_petcare` para que el docente evaluador disponga inmediatamente de los 3 roles (`admin`, `dra.morales`, `recepcion`) y datos clínicos reales tras correr `deploy_ec2.sh`.
+- **Creación automática de `btree_gist` y semilla de datos**: Se incluyó `CREATE EXTENSION IF NOT EXISTS btree_gist;` en el bloque SQL de PostgreSQL y el comando idempotente `python manage.py seed_petcare` para que el docente evaluador disponga inmediatamente de los 3 roles (`admin`, `dr.munoz`, `dr.suazo`, `recepcion`) y datos clínicos reales tras correr `deploy_ec2.sh`.

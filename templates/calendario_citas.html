@@ -27,6 +27,10 @@
       <span class="pc-badge pc-badge-CONFIRMADA">● Confirmada</span>
       <span class="pc-badge pc-badge-EN_ATENCION">● En Atención</span>
       <span class="pc-badge pc-badge-FINALIZADA">● Finalizada</span>
+      <div class="form-check form-switch ms-2 mb-0 d-flex align-items-center gap-2">
+        <input class="form-check-input" type="checkbox" id="filtro-mostrar-canceladas" />
+        <label class="form-check-label small text-secondary" for="filtro-mostrar-canceladas">Mostrar canceladas</label>
+      </div>
       <button type="button" class="btn btn-pc-cyan ms-md-2" onclick="abrirModalNuevaCita()">
         <i class="bi bi-calendar-plus-fill me-1"></i>Agendar Cita
       </button>
@@ -138,6 +142,7 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 <script>
+  const ES_ADMIN = {{ es_admin|yesno:"true,false" }};
   let calendario = null;
   let modalCitaInst = null;
   let modalDetalleInst = null;
@@ -149,6 +154,7 @@
 
     const calEl = document.getElementById("calendario-petcare");
     const selectorVet = document.getElementById("filtro-veterinario");
+    const checkCanceladas = document.getElementById("filtro-mostrar-canceladas");
 
     calendario = new FullCalendar.Calendar(calEl, {
       locale: "es",
@@ -179,6 +185,7 @@
             end: info.endStr.slice(0, 10),
           });
           if (vetId) params.set("veterinario_id", vetId);
+          if (checkCanceladas && checkCanceladas.checked) params.set("incluir_canceladas", "1");
 
           const data = await PetCare.apiFetch(`/api/citas/calendario/?${params.toString()}`);
           eventosCargados = data;
@@ -204,6 +211,11 @@
     selectorVet.addEventListener("change", () => {
       calendario.refetchEvents();
     });
+    if (checkCanceladas) {
+      checkCanceladas.addEventListener("change", () => {
+        calendario.refetchEvents();
+      });
+    }
   });
 
   function sumarTreintaMinutos(horaStr) {
@@ -351,10 +363,27 @@
       botones.push(`<button class="btn btn-sm btn-outline-warning" onclick="editarCitaDesdeCalendario(${evento.id})"><i class="bi bi-pencil-square"></i> Reprogramar</button>`);
       botones.push(`<button class="btn btn-sm btn-outline-danger" onclick="accionEstadoCalendario(${evento.id}, 'CANCELADA')"><i class="bi bi-x-circle"></i> Cancelar</button>`);
     }
+    if (ES_ADMIN) {
+      botones.push(`<button class="btn btn-sm btn-danger" onclick="eliminarCitaCalendario(${evento.id}, '${PetCare.escapeHtml(p.mascota_nombre).replace(/'/g, "\\'")}')"><i class="bi bi-trash3"></i> Borrar</button>`);
+    }
     botones.push(`<a href="${p.ficha_url}?cita_id=${evento.id}" class="btn btn-sm btn-pc-cyan"><i class="bi bi-file-earmark-medical me-1"></i>Ir a Ficha Clínica</a>`);
 
     document.getElementById("detalle-acciones").innerHTML = botones.join(" ");
     modalDetalleInst.show();
+  }
+
+  async function eliminarCitaCalendario(citaId, mascotaNombre) {
+    if (!confirm(`¿Confirma ELIMINAR permanentemente la cita #${citaId} de "${mascotaNombre}"?\nEsta acción borrará la agenda de la base de datos.`)) {
+      return;
+    }
+    try {
+      await PetCare.apiFetch(`/api/citas/${citaId}/`, { method: "DELETE" });
+      modalDetalleInst.hide();
+      PetCare.toast(`Cita #${citaId} eliminada permanentemente.`, "success");
+      calendario.refetchEvents();
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
   }
 
   async function accionEstadoCalendario(citaId, nuevoEstado) {

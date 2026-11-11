@@ -95,6 +95,10 @@ else
   EC2_PUBLIC_DNS=""
 fi
 
+if [[ -z "${EC2_PUBLIC_IP}" ]]; then
+  EC2_PUBLIC_IP="$(curl -s -m 3 https://checkip.amazonaws.com | tr -d '[:space:]' || true)"
+fi
+
 LOCAL_IP="$(hostname -I | awk '{print $1}')"
 ALLOWED_HOSTS_LIST="localhost,127.0.0.1,${LOCAL_IP}"
 CSRF_ORIGINS_LIST="http://localhost,http://127.0.0.1,http://${LOCAL_IP}"
@@ -237,5 +241,5 @@ echo "=================================================================="
 echo " ✅ Despliegue de PetCare finalizado exitosamente"
 echo " 🌐 URL Pública EC2 : http://${EC2_PUBLIC_IP:-${LOCAL_IP}}/"
 echo " 🔐 Panel Admin     : http://${EC2_PUBLIC_IP:-${LOCAL_IP}}/admin/"
-echo " 👤 Credenciales    : admin / dra.morales / recepcion (Clave: PetCare2026!)"
+echo " 👤 Credenciales    : admin / dr.munoz / dr.suazo / recepcion (Clave: PetCare2026!)"
 echo "=================================================================="

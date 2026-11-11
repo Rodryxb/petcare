@@ -409,6 +409,7 @@ def dashboard_view(request):
         "kpi_vacunas_criticas": grupos_vacunas["criticas"].count(),
         "citas_hoy": citas_hoy_qs[:15],
         "puede_atender": es_personal_clinico(request.user),
+        "es_admin": bool(request.user.es_admin or request.user.is_superuser),
     }
     return render(request, "dashboard.html", context)
 
@@ -454,6 +455,7 @@ def calendario_citas_view(request):
         "estados_cita": Cita.Estado.choices,
         "fecha_hoy": timezone.localdate().isoformat(),
         "puede_atender": es_personal_clinico(request.user),
+        "es_admin": bool(request.user.es_admin or request.user.is_superuser),
     }
     return render(request, "calendario_citas.html", context)
 

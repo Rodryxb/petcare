@@ -45,17 +45,17 @@ class CitaReglasSinBDTests(SimpleTestCase):
     def setUp(self):
         self.vet = Usuario(
             id=3,
-            username="dra.morales",
-            first_name="Valentina",
-            last_name="Morales",
+            username="dr.munoz",
+            first_name="Egon",
+            last_name="Muñoz",
             rol=Usuario.Rol.VET,
             is_active=True,
         )
         self.otro_vet = Usuario(
             id=4,
-            username="dr.soto",
-            first_name="Matías",
-            last_name="Soto",
+            username="dr.suazo",
+            first_name="Renato",
+            last_name="Suazo",
             rol=Usuario.Rol.VET,
             is_active=True,
         )
@@ -68,6 +68,8 @@ class CitaReglasSinBDTests(SimpleTestCase):
         self.admin = Usuario(
             id=1,
             username="admin",
+            first_name="Rodrigo",
+            last_name="Castro",
             rol=Usuario.Rol.ADMIN,
             is_active=True,
             is_superuser=True,
@@ -229,10 +231,10 @@ class PermisosRBACTests(SimpleTestCase):
             id=1, username="admin", rol=Usuario.Rol.ADMIN, is_active=True, is_superuser=True
         )
         self.vet = Usuario(
-            id=2, username="dra.morales", rol=Usuario.Rol.VET, is_active=True, is_superuser=False
+            id=2, username="dr.munoz", rol=Usuario.Rol.VET, is_active=True, is_superuser=False
         )
         self.otro_vet = Usuario(
-            id=3, username="dr.soto", rol=Usuario.Rol.VET, is_active=True, is_superuser=False
+            id=3, username="dr.suazo", rol=Usuario.Rol.VET, is_active=True, is_superuser=False
         )
         self.recep = Usuario(
             id=4, username="recepcion", rol=Usuario.Rol.RECEP, is_active=True, is_superuser=False

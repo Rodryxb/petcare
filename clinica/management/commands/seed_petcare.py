@@ -22,12 +22,22 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         clave_demo = "PetCare2026!"
 
+        # Renombrar cuentas demo anteriores si ya existían en BD para mantener trazabilidad
+        for anterior, nuevo in (("dra.morales", "dr.munoz"), ("dr.soto", "dr.suazo")):
+            if (
+                Usuario.objects.filter(username=anterior).exists()
+                and not Usuario.objects.filter(username=nuevo).exists()
+            ):
+                Usuario.objects.filter(username=anterior).update(username=nuevo)
+            elif Usuario.objects.filter(username=anterior).exists():
+                Usuario.objects.filter(username=anterior).update(is_active=False)
+
         # 1. Usuarios del personal con sus 3 roles
         usuarios_cfg = [
             {
                 "username": "admin",
-                "first_name": "Carlos",
-                "last_name": "Rojas",
+                "first_name": "Rodrigo",
+                "last_name": "Castro",
                 "email": "admin@petcare.cl",
                 "rol": Usuario.Rol.ADMIN,
                 "is_staff": True,
@@ -35,20 +45,20 @@ class Command(BaseCommand):
                 "telefono": "+56 9 9100 1000",
             },
             {
-                "username": "dra.morales",
-                "first_name": "Valentina",
-                "last_name": "Morales",
-                "email": "vmorales@petcare.cl",
+                "username": "dr.munoz",
+                "first_name": "Egon",
+                "last_name": "Muñoz",
+                "email": "emunoz@petcare.cl",
                 "rol": Usuario.Rol.VET,
                 "is_staff": True,
                 "is_superuser": False,
                 "telefono": "+56 9 9200 2000",
             },
             {
-                "username": "dr.soto",
-                "first_name": "Matías",
-                "last_name": "Soto",
-                "email": "msoto@petcare.cl",
+                "username": "dr.suazo",
+                "first_name": "Renato",
+                "last_name": "Suazo",
+                "email": "rsuazo@petcare.cl",
                 "rol": Usuario.Rol.VET,
                 "is_staff": False,
                 "is_superuser": False,
@@ -78,8 +88,8 @@ class Command(BaseCommand):
                 user.save()
             usuarios[username] = user
 
-        vet_principal = usuarios["dra.morales"]
-        vet_secundario = usuarios["dr.soto"]
+        vet_principal = usuarios["dr.munoz"]
+        vet_secundario = usuarios["dr.suazo"]
 
         # 2. Tutores (RUTs chilenos con dígito verificador módulo 11 válido)
         tutores_cfg = [
@@ -258,10 +268,10 @@ class Command(BaseCommand):
         # 7. Registro histórico de asistencia del personal (Presente / Ausente)
         admin_user = usuarios["admin"]
         dias_asistencia = [
-            (hoy, {"admin": "PRESENTE", "dra.morales": "PRESENTE", "dr.soto": "PRESENTE", "recepcion": "PRESENTE"}),
-            (hoy - timedelta(days=1), {"admin": "PRESENTE", "dra.morales": "PRESENTE", "dr.soto": "AUSENTE", "recepcion": "PRESENTE"}),
-            (hoy - timedelta(days=2), {"admin": "PRESENTE", "dra.morales": "AUSENTE", "dr.soto": "PRESENTE", "recepcion": "PRESENTE"}),
-            (hoy - timedelta(days=3), {"admin": "PRESENTE", "dra.morales": "PRESENTE", "dr.soto": "PRESENTE", "recepcion": "PRESENTE"}),
+            (hoy, {"admin": "PRESENTE", "dr.munoz": "PRESENTE", "dr.suazo": "PRESENTE", "recepcion": "PRESENTE"}),
+            (hoy - timedelta(days=1), {"admin": "PRESENTE", "dr.munoz": "PRESENTE", "dr.suazo": "AUSENTE", "recepcion": "PRESENTE"}),
+            (hoy - timedelta(days=2), {"admin": "PRESENTE", "dr.munoz": "AUSENTE", "dr.suazo": "PRESENTE", "recepcion": "PRESENTE"}),
+            (hoy - timedelta(days=3), {"admin": "PRESENTE", "dr.munoz": "PRESENTE", "dr.suazo": "PRESENTE", "recepcion": "PRESENTE"}),
         ]
         for fecha_dia, mapa in dias_asistencia:
             for uname, est in mapa.items():
@@ -273,6 +283,6 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                "[OK] Datos iniciales de PetCare cargados correctamente (admin / dra.morales / recepcion -> PetCare2026!)."
+                "[OK] Datos iniciales de PetCare cargados correctamente (admin / dr.munoz / dr.suazo / recepcion -> PetCare2026!)."
             )
         )

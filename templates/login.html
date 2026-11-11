@@ -35,7 +35,7 @@
         <label for="id_username" class="form-label small text-secondary fw-semibold">Usuario</label>
         <div class="input-group">
           <span class="input-group-text bg-dark border-secondary-subtle text-info"><i class="bi bi-person-badge"></i></span>
-          <input type="text" name="username" id="id_username" class="form-control" placeholder="Ej: dra.morales" required autofocus />
+          <input type="text" name="username" id="id_username" class="form-control" placeholder="Ej: dr.munoz" required autofocus />
         </div>
       </div>
 
@@ -62,15 +62,19 @@
       </div>
       <div class="d-grid gap-2">
         <button type="button" class="btn btn-sm btn-outline-secondary text-start d-flex justify-content-between align-items-center" onclick="completarDemo('admin', 'PetCare2026!')">
-          <span><i class="bi bi-person-gear text-info me-1"></i> <strong>admin</strong></span>
+          <span><i class="bi bi-person-gear text-info me-1"></i> <strong>admin</strong> <small class="text-secondary">· Rodrigo Castro</small></span>
           <span class="pc-role-badge">Administrador</span>
         </button>
-        <button type="button" class="btn btn-sm btn-outline-secondary text-start d-flex justify-content-between align-items-center" onclick="completarDemo('dra.morales', 'PetCare2026!')">
-          <span><i class="bi bi-capsule text-success me-1"></i> <strong>dra.morales</strong></span>
+        <button type="button" class="btn btn-sm btn-outline-secondary text-start d-flex justify-content-between align-items-center" onclick="completarDemo('dr.munoz', 'PetCare2026!')">
+          <span><i class="bi bi-capsule text-success me-1"></i> <strong>dr.munoz</strong> <small class="text-secondary">· Egon Muñoz</small></span>
+          <span class="pc-role-badge">Veterinario</span>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary text-start d-flex justify-content-between align-items-center" onclick="completarDemo('dr.suazo', 'PetCare2026!')">
+          <span><i class="bi bi-capsule text-success me-1"></i> <strong>dr.suazo</strong> <small class="text-secondary">· Renato Suazo</small></span>
           <span class="pc-role-badge">Veterinario</span>
         </button>
         <button type="button" class="btn btn-sm btn-outline-secondary text-start d-flex justify-content-between align-items-center" onclick="completarDemo('recepcion', 'PetCare2026!')">
-          <span><i class="bi bi-headset text-warning me-1"></i> <strong>recepcion</strong></span>
+          <span><i class="bi bi-headset text-warning me-1"></i> <strong>recepcion</strong> <small class="text-secondary">· Camila Fuentes</small></span>
           <span class="pc-role-badge">Recepcionista</span>
         </button>
       </div>

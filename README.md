@@ -16,20 +16,20 @@
 > [!IMPORTANT]
 > **Datos de acceso directo a la instancia desplegada en AWS EC2:**
 >
-> - **IP Pública / URL de Producción:** `http://<INGRESAR_IP_PUBLICA_EC2>/`
-> - **Panel Administrativo Django:** `http://<INGRESAR_IP_PUBLICA_EC2>/admin/`
-> - **API Navegable DRF:** `http://<INGRESAR_IP_PUBLICA_EC2>/api/`
+> - **IP Pública / URL de Producción:** `http://32.199.187.8/`
+> - **Panel Administrativo Django:** `http://32.199.187.8/admin/`
+> - **API Navegable DRF:** `http://32.199.187.8/api/`
 
 ### 🔐 Credenciales Predeterminadas por Rol
 
 Todas las cuentas de evaluación se crean automáticamente al ejecutar `python manage.py seed_petcare` (incluido dentro de `deploy_ec2.sh`):
 
-| Rol Interno | Usuario (`username`) | Contraseña | Permisos Clave en el Sistema |
-| :--- | :--- | :--- | :--- |
-| **Administrador (`ADMIN`)** | `admin` | `PetCare2026!` | Acceso total al sistema, Django Admin, reportes, gestión de usuarios, fichas y vacunas. |
-| **Veterinario (`VET`)** | `dra.morales` | `PetCare2026!` | Atención de citas asignadas, emisión/edición de `FichaClinica` y aplicación de `ControlVacuna`. |
-| **Veterinario (`VET`)** | `dr.soto` | `PetCare2026!` | Segundo veterinario activo para pruebas de filtrado y agenda paralela en FullCalendar. |
-| **Recepcionista (`RECEP`)** | `recepcion` | `PetCare2026!` | Gestión de `Tutor`, `Mascota` y agendamiento/confirmación de `Cita`. Lectura de fichas sin edición médica. |
+| Rol Interno | Usuario (`username`) | Nombre | Contraseña | Permisos Clave en el Sistema |
+| :--- | :--- | :--- | :--- | :--- |
+| **Administrador (`ADMIN`)** | `admin` | Rodrigo Castro | `PetCare2026!` | Acceso total al sistema, Django Admin, reportes, gestión de usuarios, borrado de agendas, fichas y vacunas. |
+| **Veterinario (`VET`)** | `dr.munoz` | Egon Muñoz | `PetCare2026!` | Atención de citas asignadas, emisión/edición de `FichaClinica` y aplicación de `ControlVacuna`. |
+| **Veterinario (`VET`)** | `dr.suazo` | Renato Suazo | `PetCare2026!` | Segundo veterinario activo para pruebas de filtrado y agenda paralela en FullCalendar. |
+| **Recepcionista (`RECEP`)** | `recepcion` | Camila Fuentes | `PetCare2026!` | Gestión de `Tutor`, `Mascota` y agendamiento/confirmación de `Cita`. Lectura de fichas sin edición médica. |
 
 ---
 
@@ -109,8 +109,8 @@ petcare/
 
 #### 1. Clonar el repositorio y crear el entorno virtual
 ```bash
-git clone <URL_DEL_REPOSITORIO>
-cd "Veterinaria backend"
+git clone https://github.com/Rodryxb/petcare.git
+cd petcare
 python -m venv .venv
 ```
 
@@ -155,7 +155,7 @@ Acceda en su navegador a `http://127.0.0.1:8000/`.
 2. **Conectarse por SSH y clonar el proyecto**:
    ```bash
    ssh -i "tu-llave.pem" ubuntu@<IP_PUBLICA_EC2>
-   git clone <URL_DEL_REPOSITORIO> petcare
+   git clone https://github.com/Rodryxb/petcare.git petcare
    cd petcare
    ```
 3. **Ejecutar el script de despliegue desatendido**:

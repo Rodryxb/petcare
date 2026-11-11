@@ -159,8 +159,14 @@
               </a>
 
               {% if cita.estado != 'FINALIZADA' and cita.estado != 'CANCELADA' %}
-              <button type="button" class="btn btn-outline-danger" onclick="cambiarEstadoCita({{ cita.id }}, 'CANCELADA')" title="Cancelar cita">
+              <button type="button" class="btn btn-outline-warning" onclick="cambiarEstadoCita({{ cita.id }}, 'CANCELADA')" title="Cancelar cita">
                 <i class="bi bi-x-lg"></i>
+              </button>
+              {% endif %}
+
+              {% if es_admin %}
+              <button type="button" class="btn btn-outline-danger" onclick="eliminarCita({{ cita.id }}, '{{ cita.mascota.nombre|escapejs }}')" title="Eliminar cita de la agenda (Solo Administrador)">
+                <i class="bi bi-trash3"></i>
               </button>
               {% endif %}
             </div>
@@ -195,6 +201,19 @@
       }
       PetCare.toast(`Cita #${citaId} actualizada a "${data.estado_display}".`, "success");
       setTimeout(() => window.location.reload(), 650);
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+
+  async function eliminarCita(citaId, mascotaNombre) {
+    if (!confirm(`¿Confirma ELIMINAR permanentemente la cita #${citaId} de "${mascotaNombre}"?\nEsta acción borrará la agenda de la base de datos.`)) {
+      return;
+    }
+    try {
+      await PetCare.apiFetch(`/api/citas/${citaId}/`, { method: "DELETE" });
+      PetCare.toast(`Cita #${citaId} eliminada permanentemente.`, "success");
+      setTimeout(() => window.location.reload(), 550);
     } catch (err) {
       PetCare.toast(err.message, "danger");
     }
