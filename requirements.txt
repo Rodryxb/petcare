@@ -1,0 +1,13 @@
+# ─── Núcleo ────────────────────────────────────────────────
+Django~=5.2.8                 # LTS (soporte hasta abril 2028)
+djangorestframework~=3.16.1
+django-cors-headers~=4.9.0    # Front-end SPA en otro origen con cookies de sesión
+
+# ─── Base de datos ─────────────────────────────────────────
+psycopg[binary]~=3.2.12       # Driver PostgreSQL (psycopg 3)
+
+# ─── Configuración ─────────────────────────────────────────
+python-decouple~=3.8
+
+# ─── Producción (AWS EC2 + Nginx) ──────────────────────────
+gunicorn~=23.0.0

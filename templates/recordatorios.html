@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}Recordatorios de Vacunas | PetCare{% endblock %}
+{% block page_header %}Semáforo Clínico de Vacunas y Controles{% endblock %}
+{% block page_subtitle %}Clasificación automática en 3 estados: Vencidas, Próximos 7 Días y Al Día{% endblock %}
+
+{% block content %}
+<!-- Barra de Resumen y Botón de Nuevo Control -->
+<div class="pc-card p-3 mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+  <div class="d-flex flex-wrap gap-3 align-items-center">
+    <span class="pc-badge pc-badge-CANCELADA">
+      ⛔ Vencidas: <strong id="count-vencidas">{{ resumen.vencidas }}</strong>
+    </span>
+    <span class="pc-badge pc-badge-PROGRAMADA">
+      ⚠ Próximos {{ dias_criticos }} Días: <strong id="count-criticas">{{ resumen.criticas }}</strong>
+    </span>
+    <span class="pc-badge pc-badge-FINALIZADA">
+      ✔ Al Día: <strong id="count-aldia">{{ resumen.al_dia }}</strong>
+    </span>
+  </div>
+
+  <button type="button" class="btn btn-pc-cyan btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoControl">
+    <i class="bi bi-plus-circle-fill me-1"></i>Programar Vacuna / Control
+  </button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Tablero Kanban / Semáforo de 3 Columnas
+     ═══════════════════════════════════════════════════════════ -->
+<div class="row g-4">
+  <!-- COLUMNA 1: VENCIDAS (< hoy) — Borde Rojo -->
+  <div class="col-12 col-lg-4">
+    <div class="pc-kanban-col" style="border-top: 3px solid var(--pc-danger);">
+      <div class="pc-card-header">
+        <span class="fw-bold text-danger d-flex align-items-center gap-2">
+          <i class="bi bi-exclamation-octagon-fill"></i>
+          <span>Vencidas (&lt; Hoy)</span>
+        </span>
+        <span class="badge rounded-pill text-bg-danger" id="badge-col-vencidas">{{ resumen.vencidas }}</span>
+      </div>
+      <div class="pc-kanban-body" id="col-vencidas">
+        {% for c in vencidas %}
+        <div class="pc-vaccine-card pc-vaccine-vencida" id="card-control-{{ c.id }}">
+          <div class="d-flex justify-content-between align-items-start mb-1">
+            <span class="fw-bold text-white">{{ c.mascota.nombre }} <small class="text-secondary">({{ c.mascota.get_especie_display }})</small></span>
+            <span class="badge text-bg-dark border border-danger-subtle text-danger">{{ c.get_tipo_display }}</span>
+          </div>
+          <div class="fw-semibold text-info small mb-2">{{ c.nombre_producto }}</div>
+          <div class="small text-secondary mb-2">
+            <div><i class="bi bi-person me-1"></i>{{ c.mascota.tutor.nombre_completo }} · <span class="font-monospace">{{ c.mascota.tutor.telefono }}</span></div>
+            <div class="text-danger fw-semibold mt-1">
+              <i class="bi bi-calendar-x me-1"></i>Venció: {{ c.fecha_proximo_vencimiento|date:"d/m/Y" }}
+            </div>
+          </div>
+          {% if puede_aplicar_vacuna %}
+          <button type="button" class="btn btn-sm btn-pc-emerald w-100 mt-1" onclick="marcarComoAplicada({{ c.id }})">
+            <i class="bi bi-check2-circle me-1"></i>Marcar como Aplicada Hoy
+          </button>
+          {% endif %}
+        </div>
+        {% empty %}
+        <div class="text-center py-4 text-secondary small">🎉 Sin vacunas vencidas.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUMNA 2: CRÍTICAS (Próximos 7 Días) — Borde Amarillo -->
+  <div class="col-12 col-lg-4">
+    <div class="pc-kanban-col" style="border-top: 3px solid var(--pc-amber);">
+      <div class="pc-card-header">
+        <span class="fw-bold text-warning d-flex align-items-center gap-2">
+          <i class="bi bi-alarm-fill"></i>
+          <span>Próximos {{ dias_criticos }} Días</span>
+        </span>
+        <span class="badge rounded-pill text-bg-warning text-dark" id="badge-col-criticas">{{ resumen.criticas }}</span>
+      </div>
+      <div class="pc-kanban-body" id="col-criticas">
+        {% for c in criticas %}
+        <div class="pc-vaccine-card pc-vaccine-critica" id="card-control-{{ c.id }}">
+          <div class="d-flex justify-content-between align-items-start mb-1">
+            <span class="fw-bold text-white">{{ c.mascota.nombre }} <small class="text-secondary">({{ c.mascota.get_especie_display }})</small></span>
+            <span class="badge text-bg-dark border border-warning-subtle text-warning">{{ c.get_tipo_display }}</span>
+          </div>
+          <div class="fw-semibold text-info small mb-2">{{ c.nombre_producto }}</div>
+          <div class="small text-secondary mb-2">
+            <div><i class="bi bi-person me-1"></i>{{ c.mascota.tutor.nombre_completo }} · <span class="font-monospace">{{ c.mascota.tutor.telefono }}</span></div>
+            <div class="text-warning fw-semibold mt-1">
+              <i class="bi bi-calendar-event me-1"></i>Vence: {{ c.fecha_proximo_vencimiento|date:"d/m/Y" }}
+            </div>
+          </div>
+          {% if puede_aplicar_vacuna %}
+          <button type="button" class="btn btn-sm btn-pc-emerald w-100 mt-1" onclick="marcarComoAplicada({{ c.id }})">
+            <i class="bi bi-check2-circle me-1"></i>Marcar como Aplicada Hoy
+          </button>
+          {% endif %}
+        </div>
+        {% empty %}
+        <div class="text-center py-4 text-secondary small">Sin vencimientos en los próximos 7 días.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUMNA 3: AL DÍA (> Hoy + 7 Días) — Borde Verde -->
+  <div class="col-12 col-lg-4">
+    <div class="pc-kanban-col" style="border-top: 3px solid var(--pc-emerald);">
+      <div class="pc-card-header">
+        <span class="fw-bold text-success d-flex align-items-center gap-2">
+          <i class="bi bi-shield-check"></i>
+          <span>Al Día</span>
+        </span>
+        <span class="badge rounded-pill text-bg-success" id="badge-col-aldia">{{ resumen.al_dia }}</span>
+      </div>
+      <div class="pc-kanban-body" id="col-aldia">
+        {% for c in al_dia %}
+        <div class="pc-vaccine-card pc-vaccine-aldia" id="card-control-{{ c.id }}">
+          <div class="d-flex justify-content-between align-items-start mb-1">
+            <span class="fw-bold text-white">{{ c.mascota.nombre }} <small class="text-secondary">({{ c.mascota.get_especie_display }})</small></span>
+            <span class="badge text-bg-dark border border-success-subtle text-success">{{ c.get_tipo_display }}</span>
+          </div>
+          <div class="fw-semibold text-info small mb-2">{{ c.nombre_producto }}</div>
+          <div class="small text-secondary">
+            <div><i class="bi bi-person me-1"></i>{{ c.mascota.tutor.nombre_completo }}</div>
+            <div class="text-success fw-semibold mt-1">
+              <i class="bi bi-check-circle me-1"></i>Próximo refuerzo: {{ c.fecha_proximo_vencimiento|date:"d/m/Y" }}
+            </div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="text-center py-4 text-secondary small">Sin controles vigentes registrados.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Programar Nuevo Control / Vacuna -->
+<div class="modal fade" id="modalNuevoControl" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" onsubmit="crearControlVacuna(event)">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white">Registrar Control / Vacuna</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="control-alerta" class="alert alert-danger d-none small py-2"></div>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label small text-secondary">Paciente (Mascota) *</label>
+            <select id="ctrl-mascota" class="form-select" required>
+              <option value="">Seleccione mascota...</option>
+              {% for m in mascotas %}
+              <option value="{{ m.id }}">{{ m.nombre }} ({{ m.get_especie_display }}) — {{ m.tutor.nombre_completo }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-5">
+            <label class="form-label small text-secondary">Tipo *</label>
+            <select id="ctrl-tipo" class="form-select" required>
+              {% for valor, etiqueta in tipos_control %}
+              <option value="{{ valor }}">{{ etiqueta }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-7">
+            <label class="form-label small text-secondary">Producto / Vacuna *</label>
+            <input type="text" id="ctrl-producto" class="form-control" placeholder="Ej: Óctuple Canina / Antirrábica" required />
+          </div>
+          {% if puede_aplicar_vacuna %}
+          <div class="col-md-6">
+            <label class="form-label small text-secondary">Fecha Aplicación</label>
+            <input type="date" id="ctrl-aplicacion" class="form-control" />
+          </div>
+          {% endif %}
+          <div class="col-md-6">
+            <label class="form-label small text-secondary">Próximo Vencimiento *</label>
+            <input type="date" id="ctrl-vencimiento" class="form-control" required />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-pc-cyan">Guardar Registro</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  async function marcarComoAplicada(controlId) {
+    try {
+      const actualizado = await PetCare.apiFetch(`/api/controles-vacunas/${controlId}/aplicar/`, {
+        method: "POST",
+        body: {},
+      });
+      PetCare.toast(
+        `${actualizado.nombre_producto} aplicada a ${actualizado.mascota_nombre}. Próximo refuerzo: ${actualizado.fecha_proximo_vencimiento}.`,
+        "success"
+      );
+      setTimeout(() => window.location.reload(), 650);
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+
+  async function crearControlVacuna(e) {
+    e.preventDefault();
+    const alerta = document.getElementById("control-alerta");
+    alerta.classList.add("d-none");
+
+    const inputAplicacion = document.getElementById("ctrl-aplicacion");
+    const payload = {
+      mascota: Number(document.getElementById("ctrl-mascota").value),
+      tipo: document.getElementById("ctrl-tipo").value,
+      nombre_producto: document.getElementById("ctrl-producto").value.trim(),
+      fecha_proximo_vencimiento: document.getElementById("ctrl-vencimiento").value,
+    };
+    if (inputAplicacion && inputAplicacion.value) {
+      payload.fecha_aplicacion = inputAplicacion.value;
+    }
+
+    try {
+      await PetCare.apiFetch("/api/controles-vacunas/", { method: "POST", body: payload });
+      PetCare.toast("Control registrado correctamente.", "success");
+      setTimeout(() => window.location.reload(), 600);
+    } catch (err) {
+      alerta.textContent = err.message;
+      alerta.classList.remove("d-none");
+    }
+  }
+</script>
+{% endblock %}

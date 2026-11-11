@@ -1,0 +1,619 @@
+/* ==========================================================================
+   PetCare — Tema "Dark Mode Clínico" de Alto Contraste
+   Paleta obligatoria:
+     - Fondo principal:         #0b0f19
+     - Tarjetas y Sidebar:      #111827
+     - Bordes sutiles:          #1f2937
+     - Acento Cian Médico:      #06b6d4
+     - Acento Verde Esmeralda:  #10b981
+     - Acento Púrpura Rol:      #8b5cf6
+   ========================================================================== */
+
+:root,
+[data-bs-theme="dark"] {
+  --pc-bg-main: #0b0f19;
+  --pc-bg-surface: #111827;
+  --pc-bg-elevated: #161f33;
+  --pc-border: #1f2937;
+  --pc-border-hover: #374151;
+  --pc-cyan: #06b6d4;
+  --pc-cyan-glow: rgba(6, 182, 212, 0.22);
+  --pc-emerald: #10b981;
+  --pc-emerald-glow: rgba(16, 185, 129, 0.22);
+  --pc-purple: #8b5cf6;
+  --pc-purple-glow: rgba(139, 92, 246, 0.22);
+  --pc-amber: #f59e0b;
+  --pc-amber-glow: rgba(245, 158, 11, 0.22);
+  --pc-danger: #ef4444;
+  --pc-danger-glow: rgba(239, 68, 68, 0.22);
+  --pc-text-primary: #f9fafb;
+  --pc-text-secondary: #9ca3af;
+  --pc-text-muted: #6b7280;
+  --pc-sidebar-width: 272px;
+  --pc-sidebar-collapsed-width: 82px;
+
+  --bs-body-bg: #0b0f19;
+  --bs-body-color: #f3f4f6;
+  --bs-border-color: #1f2937;
+  --bs-primary: #06b6d4;
+  --bs-primary-rgb: 6, 182, 212;
+  --bs-success: #10b981;
+  --bs-success-rgb: 16, 185, 129;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--pc-bg-main);
+  color: var(--pc-text-primary);
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── Layout Principal (Sidebar Fijo + Contenido) ───────────────────────── */
+.pc-wrapper {
+  display: flex;
+  min-height: 100vh;
+}
+
+.pc-sidebar {
+  width: var(--pc-sidebar-width);
+  background-color: var(--pc-bg-surface);
+  border-right: 1px solid var(--pc-border);
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 1035;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s ease;
+}
+
+.pc-main {
+  flex: 1;
+  margin-left: var(--pc-sidebar-width);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Estado colapsado en escritorio */
+body.pc-sidebar-collapsed .pc-sidebar {
+  width: var(--pc-sidebar-collapsed-width);
+}
+
+body.pc-sidebar-collapsed .pc-main {
+  margin-left: var(--pc-sidebar-collapsed-width);
+}
+
+body.pc-sidebar-collapsed .pc-sidebar .pc-hide-collapsed {
+  display: none !important;
+}
+
+body.pc-sidebar-collapsed .pc-sidebar .pc-nav-link {
+  justify-content: center;
+  padding-inline: 0.75rem;
+}
+
+body.pc-sidebar-collapsed .pc-sidebar .pc-brand {
+  justify-content: center;
+}
+
+/* ─── Marca y Navegación del Sidebar ────────────────────────────────────── */
+.pc-brand {
+  height: 70px;
+  padding: 0 1.25rem;
+  border-bottom: 1px solid var(--pc-border);
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  text-decoration: none;
+  color: var(--pc-text-primary);
+}
+
+.pc-brand-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(16, 185, 129, 0.2));
+  border: 1px solid rgba(6, 182, 212, 0.45);
+  color: var(--pc-cyan);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  box-shadow: 0 0 18px var(--pc-cyan-glow);
+  flex-shrink: 0;
+}
+
+.pc-nav-section {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--pc-text-muted);
+  font-weight: 700;
+  padding: 1rem 1.25rem 0.4rem;
+}
+
+.pc-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.7rem 1rem;
+  margin: 0.2rem 0.75rem;
+  border-radius: 0.6rem;
+  color: var(--pc-text-secondary);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.92rem;
+  border: 1px solid transparent;
+  transition: all 0.18s ease;
+}
+
+.pc-nav-link i {
+  font-size: 1.15rem;
+  color: var(--pc-text-secondary);
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.pc-nav-link:hover {
+  background-color: var(--pc-bg-elevated);
+  color: var(--pc-text-primary);
+  border-color: var(--pc-border);
+  transform: translateX(2px);
+}
+
+.pc-nav-link:hover i {
+  color: var(--pc-cyan);
+}
+
+.pc-nav-link.active {
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.16), rgba(6, 182, 212, 0.03));
+  color: #ffffff;
+  border-color: rgba(6, 182, 212, 0.4);
+  box-shadow: 0 4px 16px -4px var(--pc-cyan-glow);
+}
+
+.pc-nav-link.active i {
+  color: var(--pc-cyan);
+}
+
+/* ─── Tarjeta de Perfil del Trabajador (Sidebar Footer) ─────────────────── */
+.pc-worker-card {
+  margin: 0.75rem;
+  padding: 0.85rem;
+  border-radius: 0.75rem;
+  background-color: var(--pc-bg-main);
+  border: 1px solid var(--pc-border);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pc-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--pc-purple), var(--pc-cyan));
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 0 12px var(--pc-purple-glow);
+}
+
+.pc-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background-color: rgba(139, 92, 246, 0.18);
+  color: #c4b5fd;
+  border: 1px solid rgba(139, 92, 246, 0.45);
+}
+
+/* ─── Barra Superior (Topbar) ───────────────────────────────────────────── */
+.pc-topbar {
+  height: 70px;
+  background-color: rgba(17, 24, 39, 0.88);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--pc-border);
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+}
+
+.pc-clock-pill {
+  background-color: var(--pc-bg-main);
+  border: 1px solid var(--pc-border);
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--pc-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Tarjetas y Superficies ────────────────────────────────────────────── */
+.pc-card {
+  background-color: var(--pc-bg-surface);
+  border: 1px solid var(--pc-border);
+  border-radius: 0.85rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.pc-card-header {
+  padding: 1.1rem 1.35rem;
+  border-bottom: 1px solid var(--pc-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* Tarjetas KPI con Bordes Luminosos */
+.pc-kpi-card {
+  position: relative;
+  overflow: hidden;
+  padding: 1.35rem;
+}
+
+.pc-kpi-card:hover {
+  transform: translateY(-3px);
+}
+
+.pc-kpi-cyan {
+  border-color: rgba(6, 182, 212, 0.45);
+  box-shadow: 0 0 24px -6px var(--pc-cyan-glow);
+}
+
+.pc-kpi-purple {
+  border-color: rgba(139, 92, 246, 0.45);
+  box-shadow: 0 0 24px -6px var(--pc-purple-glow);
+}
+
+.pc-kpi-emerald {
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 0 24px -6px var(--pc-emerald-glow);
+}
+
+.pc-kpi-danger {
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 24px -6px var(--pc-danger-glow);
+}
+
+.pc-kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+}
+
+/* ─── Botones y Controles ───────────────────────────────────────────────── */
+.btn-pc-cyan {
+  background-color: var(--pc-cyan);
+  border-color: var(--pc-cyan);
+  color: #041318;
+  font-weight: 600;
+}
+
+.btn-pc-cyan:hover,
+.btn-pc-cyan:focus {
+  background-color: #22d3ee;
+  border-color: #22d3ee;
+  color: #041318;
+  box-shadow: 0 0 16px var(--pc-cyan-glow);
+}
+
+.btn-pc-emerald {
+  background-color: var(--pc-emerald);
+  border-color: var(--pc-emerald);
+  color: #031c14;
+  font-weight: 600;
+}
+
+.btn-pc-emerald:hover,
+.btn-pc-emerald:focus {
+  background-color: #34d399;
+  border-color: #34d399;
+  color: #031c14;
+  box-shadow: 0 0 16px var(--pc-emerald-glow);
+}
+
+.form-control,
+.form-select {
+  background-color: var(--pc-bg-main);
+  border-color: var(--pc-border);
+  color: var(--pc-text-primary);
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--pc-bg-main);
+  border-color: var(--pc-cyan);
+  box-shadow: 0 0 0 0.2rem var(--pc-cyan-glow);
+  color: var(--pc-text-primary);
+}
+
+/* ─── Tablas Clínicas Estilizadas ───────────────────────────────────────── */
+.pc-table {
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--pc-text-primary);
+  --bs-table-border-color: var(--pc-border);
+  margin-bottom: 0;
+  vertical-align: middle;
+}
+
+.pc-table thead th {
+  background-color: rgba(11, 15, 25, 0.65);
+  color: var(--pc-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--pc-border);
+}
+
+.pc-table tbody td {
+  padding: 0.9rem 1.1rem;
+  border-bottom: 1px solid var(--pc-border);
+}
+
+.pc-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.pc-table tbody tr:hover {
+  background-color: rgba(6, 182, 212, 0.05);
+}
+
+/* ─── Badges de Estado Clínico ──────────────────────────────────────────── */
+.pc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.68rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pc-badge-PROGRAMADA {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.pc-badge-CONFIRMADA {
+  background: rgba(139, 92, 246, 0.18);
+  color: #c4b5fd;
+  border: 1px solid rgba(139, 92, 246, 0.45);
+}
+
+.pc-badge-EN_ATENCION {
+  background: rgba(6, 182, 212, 0.18);
+  color: #22d3ee;
+  border: 1px solid rgba(6, 182, 212, 0.45);
+}
+
+.pc-badge-FINALIZADA {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+}
+
+.pc-badge-CANCELADA {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+/* ─── Timeline Vertical de Expediente Clínico ───────────────────────────── */
+.pc-timeline {
+  position: relative;
+  padding-left: 1.75rem;
+}
+
+.pc-timeline::before {
+  content: "";
+  position: absolute;
+  top: 0.35rem;
+  bottom: 0.35rem;
+  left: 0.55rem;
+  width: 2px;
+  background: linear-gradient(180deg, var(--pc-cyan), var(--pc-purple), transparent);
+}
+
+.pc-timeline-item {
+  position: relative;
+  margin-bottom: 1.2rem;
+}
+
+.pc-timeline-dot {
+  position: absolute;
+  left: -1.52rem;
+  top: 0.9rem;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--pc-cyan);
+  box-shadow: 0 0 10px var(--pc-cyan);
+}
+
+/* ─── Tablero Kanban / Semáforo de Recordatorios ────────────────────────── */
+.pc-kanban-col {
+  background-color: rgba(17, 24, 39, 0.7);
+  border: 1px solid var(--pc-border);
+  border-radius: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 210px);
+}
+
+.pc-kanban-body {
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.pc-vaccine-card {
+  background-color: var(--pc-bg-main);
+  border: 1px solid var(--pc-border);
+  border-left-width: 4px;
+  border-radius: 0.7rem;
+  padding: 1rem;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.pc-vaccine-card:hover {
+  transform: translateY(-2px);
+}
+
+.pc-vaccine-vencida {
+  border-left-color: var(--pc-danger);
+}
+
+.pc-vaccine-critica {
+  border-left-color: var(--pc-amber);
+}
+
+.pc-vaccine-aldia {
+  border-left-color: var(--pc-emerald);
+}
+
+/* ─── FullCalendar 6 Dark Mode Clínico Overrides ────────────────────────── */
+.fc {
+  --fc-page-bg-color: #111827;
+  --fc-neutral-bg-color: #0b0f19;
+  --fc-neutral-text-color: #9ca3af;
+  --fc-border-color: #1f2937;
+  --fc-button-text-color: #f9fafb;
+  --fc-button-bg-color: #161f33;
+  --fc-button-border-color: #1f2937;
+  --fc-button-hover-bg-color: #06b6d4;
+  --fc-button-hover-border-color: #06b6d4;
+  --fc-button-active-bg-color: #06b6d4;
+  --fc-button-active-border-color: #06b6d4;
+  --fc-today-bg-color: rgba(6, 182, 212, 0.08);
+  --fc-event-border-color: transparent;
+}
+
+.fc .fc-toolbar-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--pc-text-primary);
+  text-transform: capitalize;
+}
+
+.fc .fc-col-header-cell-cushion,
+.fc .fc-daygrid-day-number,
+.fc .fc-timegrid-slot-label-cushion {
+  color: var(--pc-text-secondary);
+  text-decoration: none;
+}
+
+.fc .fc-event {
+  border-radius: 6px;
+  padding: 2px 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ─── Modales ───────────────────────────────────────────────────────────── */
+.modal-content {
+  background-color: var(--pc-bg-surface);
+  border: 1px solid var(--pc-border-hover);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
+}
+
+.modal-header,
+.modal-footer {
+  border-color: var(--pc-border);
+}
+
+/* ─── Pantalla de Bloqueo por Inactividad (PIN 4 Dígitos) ─────────────────── */
+.pc-lockscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(11, 15, 25, 0.94);
+  backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.pc-lockscreen-card {
+  max-width: 420px;
+  width: 100%;
+  background: #111827;
+  border: 1px solid rgba(6, 182, 212, 0.4);
+  box-shadow: 0 0 45px -5px var(--pc-cyan-glow);
+  border-radius: 1rem;
+  padding: 2.2rem;
+  text-align: center;
+  animation: pcPulseLock 0.4s ease-out;
+}
+
+@keyframes pcPulseLock {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.pc-pin-input {
+  letter-spacing: 0.6em;
+  font-size: 1.8rem;
+  font-weight: 700;
+  text-align: center;
+  border-color: rgba(6, 182, 212, 0.4);
+  color: var(--pc-cyan);
+  background-color: #0b0f19 !important;
+}
+
+.pc-pin-input:focus {
+  border-color: var(--pc-cyan);
+  box-shadow: 0 0 15px var(--pc-cyan-glow);
+}
+
+/* ─── Responsividad ─────────────────────────────────────────────────────── */
+@media (max-width: 991.98px) {
+  .pc-sidebar {
+    transform: translateX(-100%);
+    width: var(--pc-sidebar-width) !important;
+  }
+  body.pc-mobile-nav-open .pc-sidebar {
+    transform: translateX(0);
+  }
+  .pc-main {
+    margin-left: 0 !important;
+  }
+}

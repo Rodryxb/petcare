@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Clínico | PetCare{% endblock %}
+{% block page_header %}Dashboard Operativo{% endblock %}
+{% block page_subtitle %}Resumen clínico en tiempo real · {{ fecha_hoy|date:"l d \d\e F, Y" }}{% endblock %}
+
+{% block content %}
+<!-- ═══════════════════════════════════════════════════════════
+     Tarjetas KPI con Bordes Luminosos
+     ═══════════════════════════════════════════════════════════ -->
+<div class="row g-4 mb-4">
+  <!-- KPI 1: Citas de Hoy -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="pc-card pc-kpi-card pc-kpi-cyan h-100">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="text-secondary small fw-semibold text-uppercase mb-1">Citas de Hoy</div>
+          <div class="display-6 fw-bold text-white" id="kpi-citas-hoy">{{ kpi_citas_hoy }}</div>
+          <div class="small mt-2" style="color: var(--pc-cyan);">
+            <i class="bi bi-calendar2-check me-1"></i>Agenda activa del día
+          </div>
+        </div>
+        <div class="pc-kpi-icon" style="background: rgba(6, 182, 212, 0.15); color: var(--pc-cyan);">
+          <i class="bi bi-calendar-event-fill"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI 2: Pacientes en Espera -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="pc-card pc-kpi-card pc-kpi-purple h-100">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="text-secondary small fw-semibold text-uppercase mb-1">Pacientes en Espera</div>
+          <div class="display-6 fw-bold text-white" id="kpi-pacientes-espera">{{ kpi_pacientes_espera }}</div>
+          <div class="small mt-2" style="color: #c4b5fd;">
+            <i class="bi bi-hourglass-split me-1"></i>Por atender o en box
+          </div>
+        </div>
+        <div class="pc-kpi-icon" style="background: rgba(139, 92, 246, 0.16); color: var(--pc-purple);">
+          <i class="bi bi-activity"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI 3: Fichas Emitidas -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="pc-card pc-kpi-card pc-kpi-emerald h-100">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="text-secondary small fw-semibold text-uppercase mb-1">Fichas Emitidas</div>
+          <div class="display-6 fw-bold text-white">{{ kpi_fichas_emitidas }}</div>
+          <div class="small mt-2" style="color: var(--pc-emerald);">
+            <i class="bi bi-check2-circle me-1"></i>{{ kpi_fichas_hoy }} registrada{{ kpi_fichas_hoy|pluralize:"s" }} hoy
+          </div>
+        </div>
+        <div class="pc-kpi-icon" style="background: rgba(16, 185, 129, 0.16); color: var(--pc-emerald);">
+          <i class="bi bi-clipboard2-pulse-fill"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI 4: Vacunas por Vencer -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="pc-card pc-kpi-card pc-kpi-danger h-100">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="text-secondary small fw-semibold text-uppercase mb-1">Vacunas por Vencer</div>
+          <div class="display-6 fw-bold text-white">{{ kpi_vacunas_por_vencer }}</div>
+          <div class="small mt-2 text-danger">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ kpi_vacunas_vencidas }} vencida{{ kpi_vacunas_vencidas|pluralize:"s" }} · {{ kpi_vacunas_criticas }} crítica{{ kpi_vacunas_criticas|pluralize:"s" }}
+          </div>
+        </div>
+        <div class="pc-kpi-icon" style="background: rgba(239, 68, 68, 0.16); color: var(--pc-danger);">
+          <i class="bi bi-shield-exclamation"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Tabla con la Agenda Inmediata del Día y Acciones Rápidas
+     ═══════════════════════════════════════════════════════════ -->
+<div class="pc-card">
+  <div class="pc-card-header flex-wrap">
+    <div>
+      <h2 class="h6 mb-1 fw-bold text-white d-flex align-items-center gap-2">
+        <i class="bi bi-clock-history text-info"></i>
+        <span>Agenda Inmediata del Día</span>
+      </h2>
+      <p class="text-secondary small mb-0">Gestione el flujo de recepción y box clínico sin abandonar el panel</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'tutores_mascotas' %}" class="btn btn-sm btn-outline-info">
+        <i class="bi bi-person-plus me-1"></i>Recepción
+      </a>
+      <a href="{% url 'calendario_citas' %}" class="btn btn-sm btn-pc-cyan">
+        <i class="bi bi-plus-lg me-1"></i>Agendar Cita
+      </a>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table pc-table">
+      <thead>
+        <tr>
+          <th>Horario</th>
+          <th>Paciente</th>
+          <th>Tutor / Contacto</th>
+          <th>Veterinario</th>
+          <th>Motivo</th>
+          <th>Estado</th>
+          <th class="text-end">Acción Rápida</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-agenda-hoy">
+        {% for cita in citas_hoy %}
+        <tr id="fila-cita-{{ cita.id }}">
+          <td class="fw-semibold text-info font-monospace">
+            {{ cita.hora_inicio|time:"H:i" }} – {{ cita.hora_fin|time:"H:i" }}
+          </td>
+          <td>
+            <div class="fw-semibold text-white">{{ cita.mascota.nombre }}</div>
+            <small class="text-secondary">{{ cita.mascota.get_especie_display }} · {{ cita.mascota.raza|default:" Mestizo" }}</small>
+          </td>
+          <td>
+            <div class="text-light">{{ cita.mascota.tutor.nombre_completo }}</div>
+            <small class="text-secondary">{{ cita.mascota.tutor.rut }} · {{ cita.mascota.tutor.telefono }}</small>
+          </td>
+          <td>
+            <span class="text-light">{{ cita.veterinario.get_full_name|default:cita.veterinario.username }}</span>
+          </td>
+          <td class="text-secondary small">{{ cita.motivo }}</td>
+          <td>
+            <span class="pc-badge pc-badge-{{ cita.estado }}" id="badge-cita-{{ cita.id }}">
+              {{ cita.get_estado_display }}
+            </span>
+          </td>
+          <td class="text-end">
+            <div class="btn-group btn-group-sm" role="group">
+              {% if cita.estado == 'PROGRAMADA' %}
+              <button type="button" class="btn btn-outline-info" onclick="cambiarEstadoCita({{ cita.id }}, 'CONFIRMADA')" title="Confirmar asistencia">
+                <i class="bi bi-check2"></i> Confirmar
+              </button>
+              {% endif %}
+
+              {% if puede_atender and cita.estado != 'FINALIZADA' and cita.estado != 'CANCELADA' %}
+              <button type="button" class="btn btn-outline-success" onclick="cambiarEstadoCita({{ cita.id }}, 'EN_ATENCION')" title="Pasar a box de atención">
+                <i class="bi bi-play-fill"></i> Atender
+              </button>
+              {% endif %}
+
+              <a href="{% url 'ficha_clinica_mascota' cita.mascota_id %}?cita_id={{ cita.id }}" class="btn btn-outline-light" title="Abrir Ficha Clínica">
+                <i class="bi bi-file-earmark-medical"></i> Ficha
+              </a>
+
+              {% if cita.estado != 'FINALIZADA' and cita.estado != 'CANCELADA' %}
+              <button type="button" class="btn btn-outline-danger" onclick="cambiarEstadoCita({{ cita.id }}, 'CANCELADA')" title="Cancelar cita">
+                <i class="bi bi-x-lg"></i>
+              </button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center py-5 text-secondary">
+            <i class="bi bi-calendar2-x fs-2 d-block mb-2 text-info"></i>
+            No hay citas programadas para el día de hoy.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  async function cambiarEstadoCita(citaId, nuevoEstado) {
+    try {
+      const data = await PetCare.apiFetch(`/api/citas/${citaId}/cambiar-estado/`, {
+        method: "POST",
+        body: { estado: nuevoEstado },
+      });
+      const badge = document.getElementById(`badge-cita-${citaId}`);
+      if (badge) {
+        badge.className = `pc-badge pc-badge-${data.estado}`;
+        badge.textContent = data.estado_display;
+      }
+      PetCare.toast(`Cita #${citaId} actualizada a "${data.estado_display}".`, "success");
+      setTimeout(() => window.location.reload(), 650);
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+</script>
+{% endblock %}

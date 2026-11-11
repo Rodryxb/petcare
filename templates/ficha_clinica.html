@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}Expediente Clínico Digital | PetCare{% endblock %}
+{% block page_header %}Expediente Médico Digital{% endblock %}
+{% block page_subtitle %}Historial cronológico de atenciones y emisión de ficha clínica{% endblock %}
+
+{% block content %}
+<!-- ═══════════════════════════════════════════════════════════
+     Selector Rápido de Paciente y Resumen Clínico
+     ═══════════════════════════════════════════════════════════ -->
+<div class="pc-card p-3 mb-4">
+  <div class="row g-3 align-items-center">
+    <div class="col-12 col-md-5">
+      <label class="form-label small text-secondary fw-semibold mb-1">Paciente en Consulta:</label>
+      <select class="form-select" onchange="if(this.value) window.location.href='/fichas/mascota/' + this.value + '/';">
+        {% for m in mascotas %}
+        <option value="{{ m.id }}" {% if mascota_actual and m.id == mascota_actual.id %}selected{% endif %}>
+          {{ m.nombre }} ({{ m.get_especie_display }}) — Tutor: {{ m.tutor.nombre_completo }} [{{ m.tutor.rut }}]
+        </option>
+        {% empty %}
+        <option value="">No hay mascotas registradas</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if mascota_actual %}
+    <div class="col-12 col-md-7">
+      <div class="d-flex flex-wrap gap-3 justify-content-md-end align-items-center">
+        <div class="small">
+          <span class="text-secondary">Raza / Sexo:</span>
+          <strong class="text-white">{{ mascota_actual.raza|default:"Mestizo" }} · {{ mascota_actual.get_sexo_display }}</strong>
+        </div>
+        <div class="small">
+          <span class="text-secondary">Edad:</span>
+          <strong class="text-white">{{ mascota_actual.edad }}</strong>
+        </div>
+        <div class="small">
+          <span class="text-secondary">Último Peso:</span>
+          <strong class="text-info">{{ mascota_actual.peso|default:"—" }} kg</strong>
+        </div>
+        {% if mascota_actual.alergias %}
+        <span class="pc-badge pc-badge-CANCELADA">
+          <i class="bi bi-exclamation-triangle-fill"></i> Alergia: {{ mascota_actual.alergias }}
+        </span>
+        {% else %}
+        <span class="pc-badge pc-badge-FINALIZADA">
+          <i class="bi bi-shield-check"></i> Sin alergias registradas
+        </span>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if mascota_actual %}
+<div class="row g-4">
+  <!-- ═════════════════════════════════════════════════════════
+       Columna Izquierda: Timeline Vertical de Atenciones Previas
+       ═════════════════════════════════════════════════════════ -->
+  <div class="col-12 col-lg-5">
+    <div class="pc-card h-100">
+      <div class="pc-card-header">
+        <h2 class="h6 mb-0 fw-bold text-white">
+          <i class="bi bi-clock-history text-info me-2"></i>Historial Clínico ({{ fichas_previas|length }})
+        </h2>
+        <span class="badge text-bg-dark border border-secondary-subtle">{{ mascota_actual.nombre }}</span>
+      </div>
+      <div class="p-3 p-md-4 overflow-y-auto" style="max-height: 640px;">
+        {% if fichas_previas %}
+        <div class="pc-timeline" id="timeline-fichas">
+          {% for f in fichas_previas %}
+          <div class="pc-timeline-item">
+            <span class="pc-timeline-dot"></span>
+            <div class="p-3 rounded-3" style="background: var(--pc-bg-main); border: 1px solid var(--pc-border);">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-bold text-info small">{{ f.fecha_registro|date:"d/m/Y H:i" }}</span>
+                <span class="pc-role-badge">Dr(a). {{ f.veterinario.get_full_name|default:f.veterinario.username }}</span>
+              </div>
+
+              <div class="d-flex gap-3 small text-secondary mb-2 pb-2 border-bottom border-secondary-subtle">
+                <span><i class="bi bi-thermometer-half text-info"></i> {{ f.temperatura|default:"—" }} °C</span>
+                <span><i class="bi bi-speedometer2 text-success"></i> {{ f.peso_actual|default:"—" }} kg</span>
+                <span><i class="bi bi-heart-pulse text-danger"></i> {{ f.frecuencia_cardiaca|default:"—" }} lpm</span>
+              </div>
+
+              <div class="small mb-2">
+                <span class="text-secondary fw-semibold">Anamnesis:</span>
+                <div class="text-light">{{ f.anamnesis }}</div>
+              </div>
+
+              {% if f.diagnostico_definitivo or f.diagnostico_presuntivo %}
+              <div class="small mb-2">
+                <span class="text-secondary fw-semibold">Diagnóstico:</span>
+                <div class="text-white fw-medium">{{ f.diagnostico_definitivo|default:f.diagnostico_presuntivo }}</div>
+              </div>
+              {% endif %}
+
+              {% if f.tratamiento or f.receta_medica %}
+              <div class="small text-secondary">
+                <span class="fw-semibold">Plan / Receta:</span>
+                <div>{{ f.tratamiento }} {{ f.receta_medica }}</div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-secondary">
+          <i class="bi bi-journal-medical fs-2 d-block mb-2 text-info"></i>
+          Este paciente aún no registra atenciones previas en su historial.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════
+       Columna Derecha: Formulario Organizado en Pestañas
+       ═════════════════════════════════════════════════════════ -->
+  <div class="col-12 col-lg-7">
+    <div class="pc-card">
+      <div class="pc-card-header flex-wrap">
+        <div>
+          <h2 class="h6 mb-0 fw-bold text-white">
+            <i class="bi bi-file-earmark-plus text-success me-2"></i>Nueva Atención Clínica
+          </h2>
+          <small class="text-secondary">Al guardar se actualizará el peso del paciente y se finalizará la cita asociada</small>
+        </div>
+        {% if not puede_editar_ficha %}
+        <span class="pc-badge pc-badge-CANCELADA">
+          <i class="bi bi-lock-fill"></i> Solo Lectura (Exclusivo VET / ADMIN)
+        </span>
+        {% endif %}
+      </div>
+
+      <form id="form-ficha-clinica" class="p-3 p-md-4" onsubmit="guardarFichaClinica(event)">
+        <div id="ficha-alerta" class="alert alert-danger d-none small py-2"></div>
+
+        <input type="hidden" id="ficha-mascota" value="{{ mascota_actual.id }}" />
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label small text-secondary">Veterinario Tratante *</label>
+            <select id="ficha-veterinario" class="form-select" required {% if not puede_editar_ficha %}disabled{% endif %}>
+              {% for vet in veterinarios %}
+              <option value="{{ vet.id }}" {% if request.user.id == vet.id %}selected{% endif %}>
+                {{ vet.get_full_name|default:vet.username }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small text-secondary">Cita Asociada (Opcional)</label>
+            <select id="ficha-cita" class="form-select" {% if not puede_editar_ficha %}disabled{% endif %}>
+              <option value="">Atención directa / Urgencia sin cita</option>
+              {% for c in citas_mascota %}
+              <option value="{{ c.id }}" {% if cita_seleccionada_id == c.id %}selected{% endif %}>
+                {{ c.fecha|date:"d/m/Y" }} {{ c.hora_inicio|time:"H:i" }} — {{ c.motivo }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Pestañas Clínicas -->
+        <ul class="nav nav-tabs border-secondary-subtle mb-3" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-examen-fisico" type="button" role="tab">
+              <i class="bi bi-heart-pulse me-1 text-info"></i>1. Examen Físico
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-diagnostico" type="button" role="tab">
+              <i class="bi bi-clipboard2-Check me-1 text-warning"></i>2. Diagnóstico
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-prescripcion" type="button" role="tab">
+              <i class="bi bi-capsule-pill me-1 text-success"></i>3. Prescripción y Exámenes
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content">
+          <!-- Pestaña 1: Examen Físico y Constantes Vitales -->
+          <div class="tab-pane fade show active" id="tab-examen-fisico" role="tabpanel">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label small text-secondary">Temperatura (°C)</label>
+                <input type="number" step="0.1" min="30" max="45" id="ficha-temperatura" class="form-control" placeholder="Ej: 38.5" {% if not puede_editar_ficha %}disabled{% endif %} />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small text-secondary">Peso Actual (kg)</label>
+                <input type="number" step="0.01" min="0.01" id="ficha-peso" class="form-control" value="{{ mascota_actual.peso|default:'' }}" placeholder="Ej: 12.40" {% if not puede_editar_ficha %}disabled{% endif %} />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small text-secondary">Frecuencia Cardíaca (lpm)</label>
+                <input type="number" min="1" max="400" id="ficha-fc" class="form-control" placeholder="Ej: 110" {% if not puede_editar_ficha %}disabled{% endif %} />
+              </div>
+              <div class="col-12">
+                <label class="form-label small text-secondary">Anamnesis y Hallazgos del Examen Físico *</label>
+                <textarea id="ficha-anamnesis" class="form-control" rows="4" placeholder="Relato del tutor, signos clínicos, estado de mucosas, hidratación, auscultación..." required {% if not puede_editar_ficha %}disabled{% endif %}></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pestaña 2: Diagnóstico -->
+          <div class="tab-pane fade" id="tab-diagnostico" role="tabpanel">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label small text-secondary">Diagnóstico Presuntivo</label>
+                <textarea id="ficha-diag-presuntivo" class="form-control" rows="3" placeholder="Hipótesis diagnósticas iniciales..." {% if not puede_editar_ficha %}disabled{% endif %}></textarea>
+              </div>
+              <div class="col-12">
+                <label class="form-label small text-secondary">Diagnóstico Definitivo</label>
+                <textarea id="ficha-diag-definitivo" class="form-control" rows="3" placeholder="Diagnóstico confirmado..." {% if not puede_editar_ficha %}disabled{% endif %}></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pestaña 3: Prescripción y Exámenes -->
+          <div class="tab-pane fade" id="tab-prescripcion" role="tabpanel">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label small text-secondary">Tratamiento Realizado / Indicaciones</label>
+                <textarea id="ficha-tratamiento" class="form-control" rows="3" placeholder="Procedimientos en consulta, fluidoterapia, manejo en hogar..." {% if not puede_editar_ficha %}disabled{% endif %}></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small text-secondary">Receta Médica (Fármacos, dosis y frecuencia)</label>
+                <textarea id="ficha-receta" class="form-control" rows="3" placeholder="Ej: Amoxicilina + Ác. Clavulánico 12.5 mg/kg cada 12h por 7 días" {% if not puede_editar_ficha %}disabled{% endif %}></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small text-secondary">Exámenes Complementarios Solicitados</label>
+                <textarea id="ficha-examenes" class="form-control" rows="3" placeholder="Hemograma, perfil bioquímico, ecografía abdominal..." {% if not puede_editar_ficha %}disabled{% endif %}></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {% if puede_editar_ficha %}
+        <div class="d-flex justify-content-end mt-4 pt-3 border-top border-secondary-subtle">
+          <button type="submit" class="btn btn-pc-emerald px-4">
+            <i class="bi bi-save2-fill me-2"></i>Emitir y Guardar Ficha Clínica
+          </button>
+        </div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  async function guardarFichaClinica(e) {
+    e.preventDefault();
+    const alerta = document.getElementById("ficha-alerta");
+    alerta.classList.add("d-none");
+
+    const citaVal = document.getElementById("ficha-cita").value;
+    const tempVal = document.getElementById("ficha-temperatura").value;
+    const pesoVal = document.getElementById("ficha-peso").value;
+    const fcVal = document.getElementById("ficha-fc").value;
+
+    const payload = {
+      mascota: Number(document.getElementById("ficha-mascota").value),
+      veterinario: Number(document.getElementById("ficha-veterinario").value),
+      cita: citaVal ? Number(citaVal) : null,
+      anamnesis: document.getElementById("ficha-anamnesis").value.trim(),
+      temperatura: tempVal ? tempVal : null,
+      peso_actual: pesoVal ? pesoVal : null,
+      frecuencia_cardiaca: fcVal ? Number(fcVal) : null,
+      diagnostico_presuntivo: document.getElementById("ficha-diag-presuntivo").value.trim(),
+      diagnostico_definitivo: document.getElementById("ficha-diag-definitivo").value.trim(),
+      tratamiento: document.getElementById("ficha-tratamiento").value.trim(),
+      receta_medica: document.getElementById("ficha-receta").value.trim(),
+      examenes_solicitados: document.getElementById("ficha-examenes").value.trim(),
+    };
+
+    try {
+      await PetCare.apiFetch("/api/fichas-clinicas/", { method: "POST", body: payload });
+      PetCare.toast("Ficha clínica registrada exitosamente.", "success");
+      setTimeout(() => window.location.reload(), 650);
+    } catch (err) {
+      alerta.textContent = err.message;
+      alerta.classList.remove("d-none");
+    }
+  }
+</script>
+{% endblock %}

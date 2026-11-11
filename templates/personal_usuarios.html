@@ -1,0 +1,490 @@
+{% extends "base.html" %}
+
+{% block title %}Usuarios, Roles y Asistencia | PetCare{% endblock %}
+{% block page_header %}Administración de Usuarios, Roles y Asistencia{% endblock %}
+{% block page_subtitle %}Directorio interno del personal clínico y registro diario de asistencia laboral{% endblock %}
+
+{% block content %}
+<!-- ═══════════════════════════════════════════════════════════
+     Barra Superior: Selector de Fecha, Resumen y Acción Superusuario
+     ═══════════════════════════════════════════════════════════ -->
+<div class="pc-card p-3 mb-4">
+  <div class="row g-3 align-items-center justify-content-between">
+    <div class="col-12 col-lg-5 d-flex flex-wrap align-items-center gap-3">
+      <div>
+        <label for="filtro-fecha-asistencia" class="form-label small text-secondary fw-semibold mb-1">
+          <i class="bi bi-calendar-check text-info me-1"></i>Fecha de Asistencia:
+        </label>
+        <input
+          type="date"
+          id="filtro-fecha-asistencia"
+          class="form-control form-control-sm"
+          value="{{ fecha_seleccionada_iso }}"
+          onchange="window.location.href='?fecha=' + this.value"
+        />
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 pt-3">
+        <span class="pc-badge pc-badge-FINALIZADA">
+          ✔ Presentes: <strong id="contador-presentes">{{ total_presentes_fecha }}</strong>
+        </span>
+        <span class="pc-badge pc-badge-CANCELADA">
+          ✖ Ausentes: <strong id="contador-ausentes">{{ total_ausentes_fecha }}</strong>
+        </span>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-7 d-flex flex-wrap align-items-center justify-content-lg-end gap-2">
+      {% if es_superusuario %}
+      <span class="pc-role-badge py-1 px-3">
+        <i class="bi bi-shield-fill-check text-info"></i>
+        Modo Superusuario: Control Total de Usuarios y Asistencia
+      </span>
+      <button type="button" class="btn btn-pc-cyan" onclick="abrirModalUsuario()">
+        <i class="bi bi-person-plus-fill me-1"></i>Nuevo Usuario / Rol
+      </button>
+      {% else %}
+      <span class="pc-badge pc-badge-PROGRAMADA">
+        <i class="bi bi-eye-fill"></i>
+        Modo Lectura: Visualización de Roles y Asistencia (Edición exclusiva del Superusuario)
+      </span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Pestañas: 1) Personal y Roles  |  2) Historial de Asistencia
+     ═══════════════════════════════════════════════════════════ -->
+<ul class="nav nav-pills mb-3 gap-2" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active d-flex align-items-center gap-2" data-bs-toggle="pill" data-bs-target="#pane-personal" type="button" role="tab">
+      <i class="bi bi-people-fill"></i>
+      <span>Usuarios y Roles del Sistema ({{ trabajadores|length }})</span>
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link d-flex align-items-center gap-2" data-bs-toggle="pill" data-bs-target="#pane-historial-asistencia" type="button" role="tab">
+      <i class="bi bi-calendar2-range-fill"></i>
+      <span>Historial de Días Asistidos</span>
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+  <!-- ═════════════════════════════════════════════════════════
+       PESTAÑA 1: Tabla de Usuarios, Roles y Asistencia del Día
+       ═════════════════════════════════════════════════════════ -->
+  <div class="tab-pane fade show active" id="pane-personal" role="tabpanel">
+    <div class="pc-card">
+      <div class="table-responsive">
+        <table class="table pc-table">
+          <thead>
+            <tr>
+              <th>Trabajador</th>
+              <th>Usuario / Contacto</th>
+              <th>Rol Asignado</th>
+              <th>Estado Cuenta</th>
+              <th>Acumulado Histórico</th>
+              <th>Asistencia ({{ fecha_seleccionada|date:"d/m/Y" }})</th>
+              {% if es_superusuario %}
+              <th class="text-end">Gestión (Superusuario)</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in trabajadores %}
+            <tr id="fila-usuario-{{ u.id }}">
+              <td>
+                <div class="d-flex align-items-center gap-3">
+                  <div class="pc-avatar">
+                    {{ u.first_name|default:u.username|slice:":1"|upper }}{{ u.last_name|slice:":1"|upper }}
+                  </div>
+                  <div>
+                    <div class="fw-bold text-white">
+                      {{ u.get_full_name|default:u.username }}
+                      {% if u.is_superuser %}
+                      <span class="badge rounded-pill text-bg-info text-dark ms-1" style="font-size: 0.65rem;">SUPERUSUARIO</span>
+                      {% endif %}
+                    </div>
+                    <small class="text-secondary">Ingreso: {{ u.date_joined|date:"d/m/Y" }}</small>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div class="font-monospace text-info small">@{{ u.username }}</div>
+                <div class="small text-secondary">{{ u.email }}</div>
+                {% if u.telefono %}
+                <div class="small text-secondary">{{ u.telefono }}</div>
+                {% endif %}
+              </td>
+              <td>
+                <span class="pc-role-badge">
+                  <i class="bi bi-shield-check"></i>
+                  {{ u.get_rol_display }}
+                </span>
+              </td>
+              <td>
+                {% if u.is_active %}
+                <span class="pc-badge pc-badge-FINALIZADA">Activo</span>
+                {% else %}
+                <span class="pc-badge pc-badge-CANCELADA">Inactivo</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="d-flex flex-wrap gap-2 small">
+                  <span class="badge text-bg-dark border border-success-subtle text-success">
+                    Presente: <strong id="acum-presente-{{ u.id }}">{{ u.dias_presente }}</strong> día{{ u.dias_presente|pluralize:"s" }}
+                  </span>
+                  <span class="badge text-bg-dark border border-danger-subtle text-danger">
+                    Ausente: <strong id="acum-ausente-{{ u.id }}">{{ u.dias_ausente }}</strong> día{{ u.dias_ausente|pluralize:"s" }}
+                  </span>
+                </div>
+              </td>
+              <td>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <span id="badge-asistencia-{{ u.id }}">
+                    {% if u.estado_en_fecha == 'PRESENTE' %}
+                    <span class="pc-badge pc-badge-FINALIZADA"><i class="bi bi-check-circle-fill"></i> Presente</span>
+                    {% elif u.estado_en_fecha == 'AUSENTE' %}
+                    <span class="pc-badge pc-badge-CANCELADA"><i class="bi bi-x-circle-fill"></i> Ausente</span>
+                    {% else %}
+                    <span class="badge text-bg-dark border border-secondary-subtle text-secondary">Sin registrar</span>
+                    {% endif %}
+                  </span>
+
+                  {% if es_superusuario %}
+                  <div class="btn-group btn-group-sm ms-1" role="group" aria-label="Marcar asistencia">
+                    <button
+                      type="button"
+                      class="btn btn-outline-success"
+                      onclick="marcarAsistencia({{ u.id }}, 'PRESENTE')"
+                      title="Marcar Presente"
+                    >
+                      Presente
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-outline-danger"
+                      onclick="marcarAsistencia({{ u.id }}, 'AUSENTE')"
+                      title="Marcar Ausente"
+                    >
+                      Ausente
+                    </button>
+                  </div>
+                  {% endif %}
+                </div>
+              </td>
+              {% if es_superusuario %}
+              <td class="text-end">
+                <div class="btn-group btn-group-sm">
+                  <button type="button" class="btn btn-outline-info" onclick="editarUsuario({{ u.id }})" title="Editar usuario y rol">
+                    <i class="bi bi-pencil-square"></i> Editar
+                  </button>
+                  {% if u.id != request.user.id %}
+                  <button type="button" class="btn btn-outline-danger" onclick="eliminarUsuario({{ u.id }}, '{{ u.username|escapejs }}')" title="Eliminar o desactivar usuario">
+                    <i class="bi bi-trash3"></i>
+                  </button>
+                  {% endif %}
+                </div>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════
+       PESTAÑA 2: Bitácora Histórica de Días Asistidos
+       ═════════════════════════════════════════════════════════ -->
+  <div class="tab-pane fade" id="pane-historial-asistencia" role="tabpanel">
+    <div class="pc-card">
+      <div class="pc-card-header flex-wrap">
+        <div>
+          <h2 class="h6 mb-0 fw-bold text-white">
+            <i class="bi bi-journal-check text-info me-2"></i>Registro Histórico de Asistencia Laboral
+          </h2>
+          <small class="text-secondary">Detalle por fecha con estado exclusivo "Presente" o "Ausente"</small>
+        </div>
+        <div class="d-flex gap-2">
+          <select id="filtro-historial-estado" class="form-select form-select-sm" onchange="filtrarTablaHistorial()">
+            <option value="">Todos los estados</option>
+            <option value="PRESENTE">Solo Presente</option>
+            <option value="AUSENTE">Solo Ausente</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table pc-table" id="tabla-historial-asistencia">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Trabajador</th>
+              <th>Rol</th>
+              <th>Estado de Asistencia</th>
+              <th>Registrado Por</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for reg in historial_asistencia %}
+            <tr data-estado="{{ reg.estado }}">
+              <td class="font-monospace text-info fw-semibold">{{ reg.fecha|date:"d/m/Y" }}</td>
+              <td class="fw-semibold text-white">
+                {{ reg.usuario.get_full_name|default:reg.usuario.username }}
+                <small class="text-secondary font-monospace ms-1">(@{{ reg.usuario.username }})</small>
+              </td>
+              <td>
+                <span class="pc-role-badge">{{ reg.usuario.get_rol_display }}</span>
+              </td>
+              <td>
+                {% if reg.estado == 'PRESENTE' %}
+                <span class="pc-badge pc-badge-FINALIZADA">
+                  <i class="bi bi-check-circle-fill"></i> Presente
+                </span>
+                {% else %}
+                <span class="pc-badge pc-badge-CANCELADA">
+                  <i class="bi bi-x-circle-fill"></i> Ausente
+                </span>
+                {% endif %}
+              </td>
+              <td class="text-secondary small">
+                {% if reg.registrado_por %}
+                {{ reg.registrado_por.get_full_name|default:reg.registrado_por.username }}
+                {% else %}
+                Sistema
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="5" class="text-center py-4 text-secondary">No hay registros de asistencia aún.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if es_superusuario %}
+<!-- ═══════════════════════════════════════════════════════════
+     Modal (Exclusivo Superusuario): Crear / Editar Usuario y Rol
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalUsuario" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <form class="modal-content" id="form-usuario" onsubmit="guardarUsuario(event)">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white" id="modalUsuarioTitulo">
+          <i class="bi bi-person-gear text-info me-2"></i>Nuevo Usuario del Personal
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="usr-id" />
+        <div id="usr-alerta" class="alert alert-danger d-none small py-2"></div>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small text-secondary">Nombre de Usuario (Login) *</label>
+            <input type="text" id="usr-username" class="form-control font-monospace" placeholder="Ej: dr.ramirez" required />
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label small text-secondary">Rol en el Sistema *</label>
+            <select id="usr-rol" class="form-select" required>
+              {% for valor, etiqueta in roles_usuario %}
+              <option value="{{ valor }}">{{ etiqueta }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label small text-secondary">Nombres *</label>
+            <input type="text" id="usr-nombres" class="form-control" required />
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label small text-secondary">Apellidos *</label>
+            <input type="text" id="usr-apellidos" class="form-control" required />
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label small text-secondary">Correo Electrónico *</label>
+            <input type="email" id="usr-email" class="form-control" placeholder="nombre@petcare.cl" required />
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label small text-secondary">Teléfono</label>
+            <input type="text" id="usr-telefono" class="form-control" placeholder="+56 9 9123 4567" />
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label small text-secondary" id="label-usr-password">Contraseña *</label>
+            <input type="password" id="usr-password" class="form-control" placeholder="Mínimo 6 caracteres" />
+            <small class="text-secondary" id="help-usr-password" style="font-size: 0.72rem;">Obligatoria al crear; déjela en blanco al editar si no desea cambiarla.</small>
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label small text-secondary">PIN de Bloqueo (4 dígitos) *</label>
+            <input type="text" id="usr-pin" class="form-control font-monospace text-center" maxlength="4" pattern="[0-9]{4}" value="1234" required />
+          </div>
+
+          <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check form-switch mb-2">
+              <input class="form-check-input" type="checkbox" id="usr-activo" checked />
+              <label class="form-check-label small text-light" for="usr-activo">Usuario Activo</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-pc-cyan">
+          <i class="bi bi-check2-circle me-1"></i>Guardar Usuario
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let modalUsuarioInst = null;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const modalEl = document.getElementById("modalUsuario");
+    if (modalEl) {
+      modalUsuarioInst = new bootstrap.Modal(modalEl);
+    }
+  });
+
+  function filtrarTablaHistorial() {
+    const filtro = document.getElementById("filtro-historial-estado").value;
+    const filas = document.querySelectorAll("#tabla-historial-asistencia tbody tr[data-estado]");
+    filas.forEach((tr) => {
+      if (!filtro || tr.dataset.estado === filtro) {
+        tr.classList.remove("d-none");
+      } else {
+        tr.classList.add("d-none");
+      }
+    });
+  }
+
+  async function marcarAsistencia(usuarioId, estado) {
+    const fecha = document.getElementById("filtro-fecha-asistencia").value;
+    try {
+      const reg = await PetCare.apiFetch("/api/asistencias/marcar/", {
+        method: "POST",
+        body: { usuario: usuarioId, fecha, estado },
+      });
+
+      const contenedor = document.getElementById(`badge-asistencia-${usuarioId}`);
+      if (contenedor) {
+        if (reg.estado === "PRESENTE") {
+          contenedor.innerHTML = `<span class="pc-badge pc-badge-FINALIZADA"><i class="bi bi-check-circle-fill"></i> Presente</span>`;
+        } else {
+          contenedor.innerHTML = `<span class="pc-badge pc-badge-CANCELADA"><i class="bi bi-x-circle-fill"></i> Ausente</span>`;
+        }
+      }
+      PetCare.toast(`Asistencia de ${reg.usuario_nombre}: ${reg.estado_display} (${reg.fecha}).`, "success");
+      setTimeout(() => window.location.reload(), 550);
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+
+  function abrirModalUsuario() {
+    if (!modalUsuarioInst) return;
+    document.getElementById("form-usuario").reset();
+    document.getElementById("usr-id").value = "";
+    document.getElementById("usr-pin").value = "1234";
+    document.getElementById("usr-activo").checked = true;
+    document.getElementById("usr-password").required = true;
+    document.getElementById("modalUsuarioTitulo").innerHTML = `<i class="bi bi-person-plus-fill text-info me-2"></i>Nuevo Usuario del Personal`;
+    document.getElementById("usr-alerta").classList.add("d-none");
+    modalUsuarioInst.show();
+  }
+
+  async function editarUsuario(id) {
+    if (!modalUsuarioInst) return;
+    try {
+      const u = await PetCare.apiFetch(`/api/usuarios/${id}/`);
+      document.getElementById("usr-id").value = u.id;
+      document.getElementById("usr-username").value = u.username;
+      document.getElementById("usr-rol").value = u.rol;
+      document.getElementById("usr-nombres").value = u.first_name || "";
+      document.getElementById("usr-apellidos").value = u.last_name || "";
+      document.getElementById("usr-email").value = u.email || "";
+      document.getElementById("usr-telefono").value = u.telefono || "";
+      document.getElementById("usr-pin").value = u.pin_seguridad || "1234";
+      document.getElementById("usr-activo").checked = Boolean(u.is_active);
+      document.getElementById("usr-password").value = "";
+      document.getElementById("usr-password").required = false;
+      document.getElementById("modalUsuarioTitulo").innerHTML = `<i class="bi bi-pencil-square text-info me-2"></i>Editar Usuario: ${PetCare.escapeHtml(u.nombre_completo)}`;
+      document.getElementById("usr-alerta").classList.add("d-none");
+      modalUsuarioInst.show();
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+
+  async function guardarUsuario(e) {
+    e.preventDefault();
+    const id = document.getElementById("usr-id").value;
+    const alerta = document.getElementById("usr-alerta");
+    alerta.classList.add("d-none");
+
+    const payload = {
+      username: document.getElementById("usr-username").value.trim(),
+      rol: document.getElementById("usr-rol").value,
+      first_name: document.getElementById("usr-nombres").value.trim(),
+      last_name: document.getElementById("usr-apellidos").value.trim(),
+      email: document.getElementById("usr-email").value.trim(),
+      telefono: document.getElementById("usr-telefono").value.trim(),
+      pin_seguridad: document.getElementById("usr-pin").value.trim(),
+      is_active: document.getElementById("usr-activo").checked,
+    };
+
+    const passwordVal = document.getElementById("usr-password").value;
+    if (passwordVal) {
+      payload.password = passwordVal;
+    }
+
+    try {
+      const url = id ? `/api/usuarios/${id}/` : `/api/usuarios/`;
+      const method = id ? "PATCH" : "POST";
+      const guardado = await PetCare.apiFetch(url, { method, body: payload });
+      modalUsuarioInst.hide();
+      PetCare.toast(`Usuario "${guardado.nombre_completo}" (${guardado.rol_display}) guardado correctamente.`, "success");
+      setTimeout(() => window.location.reload(), 600);
+    } catch (err) {
+      alerta.textContent = err.message;
+      alerta.classList.remove("d-none");
+    }
+  }
+
+  async function eliminarUsuario(id, username) {
+    if (!confirm(`¿Confirma eliminar o dar de baja al usuario "@${username}"?`)) {
+      return;
+    }
+    try {
+      const res = await PetCare.apiFetch(`/api/usuarios/${id}/`, { method: "DELETE" });
+      if (res && res.detail) {
+        PetCare.toast(res.detail, "warning");
+      } else {
+        PetCare.toast(`Usuario @${username} eliminado.`, "success");
+      }
+      setTimeout(() => window.location.reload(), 600);
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+</script>
+{% endblock %}

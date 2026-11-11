@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+
+{% block title %}Agenda y Calendario | PetCare{% endblock %}
+{% block page_header %}Agenda Clínica de Citas{% endblock %}
+{% block page_subtitle %}Calendario interactivo con control anti-solapamiento por veterinario{% endblock %}
+
+{% block content %}
+<!-- ═══════════════════════════════════════════════════════════
+     Barra Superior: Filtro de Veterinario + Leyenda de Estados
+     ═══════════════════════════════════════════════════════════ -->
+<div class="pc-card p-3 mb-4">
+  <div class="row g-3 align-items-center justify-content-between">
+    <div class="col-12 col-md-5 col-xl-4">
+      <label for="filtro-veterinario" class="form-label small text-secondary fw-semibold mb-1">
+        <i class="bi bi-person-Vcard text-info me-1"></i>Filtrar agenda por Veterinario:
+      </label>
+      <select id="filtro-veterinario" class="form-select">
+        <option value="">Todos los Veterinarios Activos</option>
+        {% for vet in veterinarios %}
+        <option value="{{ vet.id }}">{{ vet.get_full_name|default:vet.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-12 col-md-7 col-xl-8 d-flex flex-wrap align-items-center justify-content-md-end gap-2">
+      <span class="pc-badge pc-badge-PROGRAMADA">● Programada</span>
+      <span class="pc-badge pc-badge-CONFIRMADA">● Confirmada</span>
+      <span class="pc-badge pc-badge-EN_ATENCION">● En Atención</span>
+      <span class="pc-badge pc-badge-FINALIZADA">● Finalizada</span>
+      <button type="button" class="btn btn-pc-cyan ms-md-2" onclick="abrirModalNuevaCita()">
+        <i class="bi bi-calendar-plus-fill me-1"></i>Agendar Cita
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Contenedor FullCalendar 6 (Dark Mode Clínico)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="pc-card p-3 p-md-4">
+  <div id="calendario-petcare" style="min-height: 680px;"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Modal: Agendar / Editar Cita con Detector Anti-Solapamiento
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalCita" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" id="form-cita" onsubmit="guardarCita(event)">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white" id="modalCitaTitulo">
+          <i class="bi bi-calendar2-plus text-info me-2"></i>Agendar Cita Clínica
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Alerta dinámica de conflicto de horario (Anti-Solapamiento) -->
+        <div id="cita-alerta-solapamiento" class="alert alert-danger border-danger d-none small py-2">
+          <div class="d-flex align-items-start gap-2">
+            <i class="bi bi-exclamation-octagon-fill fs-5 text-danger"></i>
+            <div>
+              <div class="fw-bold">Conflicto de Horario Detectado</div>
+              <div id="cita-alerta-texto"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label small text-secondary">Paciente (Mascota) *</label>
+            <select id="cita-mascota" class="form-select" required>
+              <option value="">Seleccione mascota...</option>
+              {% for m in mascotas %}
+              <option value="{{ m.id }}">{{ m.nombre }} ({{ m.get_especie_display }}) — Tutor: {{ m.tutor.nombre_completo }} [{{ m.tutor.rut }}]</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label small text-secondary">Veterinario Asignado *</label>
+            <select id="cita-veterinario" class="form-select" required onchange="verificarSolapamientoEnVivo()">
+              <option value="">Seleccione veterinario...</option>
+              {% for vet in veterinarios %}
+              <option value="{{ vet.id }}">{{ vet.get_full_name|default:vet.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label small text-secondary">Fecha *</label>
+            <input type="date" id="cita-fecha" class="form-control" value="{{ fecha_hoy }}" required onchange="verificarSolapamientoEnVivo()" />
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label small text-secondary">Hora Inicio *</label>
+            <input type="time" id="cita-inicio" class="form-control" value="09:00" required onchange="verificarSolapamientoEnVivo()" />
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label small text-secondary">Hora Término *</label>
+            <input type="time" id="cita-fin" class="form-control" value="09:30" required onchange="verificarSolapamientoEnVivo()" />
+          </div>
+
+          <div class="col-12">
+            <label class="form-label small text-secondary">Motivo de Consulta *</label>
+            <input type="text" id="cita-motivo" class="form-control" placeholder="Ej: Control anual, vacunación óctuple, decaimiento..." required />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-pc-cyan" id="btn-submit-cita">
+          <i class="bi bi-check2-circle me-1"></i>Confirmar Reserva
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Modal: Detalle de Cita Seleccionada en el Calendario
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalDetalleCita" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white" id="detalle-titulo">Detalle de Cita</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="detalle-cuerpo"></div>
+      <div class="modal-footer d-flex justify-content-between" id="detalle-acciones"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script>
+  let calendario = null;
+  let modalCitaInst = null;
+  let modalDetalleInst = null;
+  let eventosCargados = [];
+
+  document.addEventListener("DOMContentLoaded", () => {
+    modalCitaInst = new bootstrap.Modal(document.getElementById("modalCita"));
+    modalDetalleInst = new bootstrap.Modal(document.getElementById("modalDetalleCita"));
+
+    const calEl = document.getElementById("calendario-petcare");
+    const selectorVet = document.getElementById("filtro-veterinario");
+
+    calendario = new FullCalendar.Calendar(calEl, {
+      locale: "es",
+      initialView: "timeGridWeek",
+      slotMinTime: "08:00:00",
+      slotMaxTime: "21:00:00",
+      slotDuration: "00:30:00",
+      allDaySlot: false,
+      nowIndicator: true,
+      selectable: true,
+      height: "auto",
+      headerToolbar: {
+        left: "prev,next today",
+        center: "title",
+        right: "dayGridMonth,timeGridWeek,timeGridDay",
+      },
+      buttonText: {
+        today: "Hoy",
+        month: "Mes",
+        week: "Semana",
+        day: "Día",
+      },
+      events: async (info, successCallback, failureCallback) => {
+        try {
+          const vetId = selectorVet.value;
+          const params = new URLSearchParams({
+            start: info.startStr.slice(0, 10),
+            end: info.endStr.slice(0, 10),
+          });
+          if (vetId) params.set("veterinario_id", vetId);
+
+          const data = await PetCare.apiFetch(`/api/citas/calendario/?${params.toString()}`);
+          eventosCargados = data;
+          successCallback(data);
+        } catch (err) {
+          PetCare.toast(err.message, "danger");
+          failureCallback(err);
+        }
+      },
+      dateClick: (info) => {
+        const partes = info.dateStr.split("T");
+        const fecha = partes[0];
+        const horaInicio = partes[1] ? partes[1].slice(0, 5) : "09:00";
+        abrirModalNuevaCita(fecha, horaInicio);
+      },
+      eventClick: (info) => {
+        mostrarDetalleCita(info.event);
+      },
+    });
+
+    calendario.render();
+
+    selectorVet.addEventListener("change", () => {
+      calendario.refetchEvents();
+    });
+  });
+
+  function sumarTreintaMinutos(horaStr) {
+    const [h, m] = horaStr.split(":").map(Number);
+    const total = h * 60 + m + 30;
+    const nh = String(Math.floor(total / 60) % 24).padStart(2, "0");
+    const nm = String(total % 60).padStart(2, "0");
+    return `${nh}:${nm}`;
+  }
+
+  function abrirModalNuevaCita(fecha = null, horaInicio = "09:00") {
+    document.getElementById("form-cita").reset();
+    document.getElementById("cita-alerta-solapamiento").classList.add("d-none");
+
+    const vetFiltro = document.getElementById("filtro-veterinario").value;
+    if (vetFiltro) {
+      document.getElementById("cita-veterinario").value = vetFiltro;
+    }
+    if (fecha) {
+      document.getElementById("cita-fecha").value = fecha;
+    } else {
+      document.getElementById("cita-fecha").value = "{{ fecha_hoy }}";
+    }
+    document.getElementById("cita-inicio").value = horaInicio;
+    document.getElementById("cita-fin").value = sumarTreintaMinutos(horaInicio);
+
+    verificarSolapamientoEnVivo();
+    modalCitaInst.show();
+  }
+
+  /**
+   * Pre-validación visual instantánea en cliente para advertir choques de horario
+   * antes de enviar al servidor.
+   */
+  function verificarSolapamientoEnVivo() {
+    const vetId = Number(document.getElementById("cita-veterinario").value);
+    const fecha = document.getElementById("cita-fecha").value;
+    const inicio = document.getElementById("cita-inicio").value;
+    const fin = document.getElementById("cita-fin").value;
+    const alertaBox = document.getElementById("cita-alerta-solapamiento");
+    const alertaTxt = document.getElementById("cita-alerta-texto");
+
+    alertaBox.classList.add("d-none");
+    if (!vetId || !fecha || !inicio || !fin) return;
+
+    if (fin <= inicio) {
+      alertaTxt.textContent = "La hora de término debe ser posterior a la hora de inicio.";
+      alertaBox.classList.remove("d-none");
+      return;
+    }
+
+    const choque = eventosCargados.find((ev) => {
+      const p = ev.extendedProps || {};
+      if (p.veterinario_id !== vetId || p.fecha !== fecha || p.estado === "CANCELADA") {
+        return false;
+      }
+      return p.hora_inicio < fin && p.hora_fin > inicio;
+    });
+
+    if (choque) {
+      const p = choque.extendedProps;
+      alertaTxt.textContent = `El Dr(a). ${p.veterinario_nombre} ya tiene agendado a "${p.mascota_nombre}" entre ${p.hora_inicio} y ${p.hora_fin}.`;
+      alertaBox.classList.remove("d-none");
+    }
+  }
+
+  async function guardarCita(e) {
+    e.preventDefault();
+    const alertaBox = document.getElementById("cita-alerta-solapamiento");
+    const alertaTxt = document.getElementById("cita-alerta-texto");
+    alertaBox.classList.add("d-none");
+
+    const payload = {
+      mascota: Number(document.getElementById("cita-mascota").value),
+      veterinario: Number(document.getElementById("cita-veterinario").value),
+      fecha: document.getElementById("cita-fecha").value,
+      hora_inicio: document.getElementById("cita-inicio").value,
+      hora_fin: document.getElementById("cita-fin").value,
+      motivo: document.getElementById("cita-motivo").value.trim(),
+    };
+
+    try {
+      await PetCare.apiFetch("/api/citas/", { method: "POST", body: payload });
+      modalCitaInst.hide();
+      PetCare.toast("Cita agendada exitosamente.", "success");
+      calendario.refetchEvents();
+    } catch (err) {
+      alertaTxt.textContent = err.message;
+      alertaBox.classList.remove("d-none");
+    }
+  }
+
+  function mostrarDetalleCita(evento) {
+    const p = evento.extendedProps;
+    document.getElementById("detalle-titulo").textContent = `${p.mascota_nombre} (${p.especie})`;
+    document.getElementById("detalle-cuerpo").innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <span class="pc-badge pc-badge-${p.estado}">${PetCare.escapeHtml(p.estado_display)}</span>
+        <span class="text-info fw-semibold font-monospace">${p.fecha} · ${p.hora_inicio} – ${p.hora_fin}</span>
+      </div>
+      <div class="small text-secondary mb-1">Tutor Responsable</div>
+      <div class="fw-semibold text-white mb-2">${PetCare.escapeHtml(p.tutor_nombre)} · <span class="font-monospace">${PetCare.escapeHtml(p.tutor_rut)}</span> (${PetCare.escapeHtml(p.tutor_telefono)})</div>
+      <div class="small text-secondary mb-1">Veterinario Asignado</div>
+      <div class="text-light mb-2">${PetCare.escapeHtml(p.veterinario_nombre)}</div>
+      <div class="small text-secondary mb-1">Motivo de Consulta</div>
+      <div class="text-light">${PetCare.escapeHtml(p.motivo)}</div>
+    `;
+
+    const botones = [];
+    if (p.estado === "PROGRAMADA") {
+      botones.push(`<button class="btn btn-sm btn-outline-info" onclick="accionEstadoCalendario(${evento.id}, 'CONFIRMADA')"><i class="bi bi-check2"></i> Confirmar</button>`);
+    }
+    if (p.estado !== "FINALIZADA" && p.estado !== "CANCELADA") {
+      botones.push(`<button class="btn btn-sm btn-outline-danger" onclick="accionEstadoCalendario(${evento.id}, 'CANCELADA')"><i class="bi bi-x-circle"></i> Cancelar</button>`);
+    }
+    botones.push(`<a href="${p.ficha_url}?cita_id=${evento.id}" class="btn btn-sm btn-pc-cyan"><i class="bi bi-file-earmark-medical me-1"></i>Ir a Ficha Clínica</a>`);
+
+    document.getElementById("detalle-acciones").innerHTML = botones.join(" ");
+    modalDetalleInst.show();
+  }
+
+  async function accionEstadoCalendario(citaId, nuevoEstado) {
+    try {
+      await PetCare.apiFetch(`/api/citas/${citaId}/cambiar-estado/`, {
+        method: "POST",
+        body: { estado: nuevoEstado },
+      });
+      modalDetalleInst.hide();
+      PetCare.toast("Estado de cita actualizado.", "success");
+      calendario.refetchEvents();
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+</script>
+{% endblock %}
