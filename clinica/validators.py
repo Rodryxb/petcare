@@ -32,6 +32,33 @@ def calcular_dv(cuerpo: str) -> str:
     return {11: "0", 10: "K"}.get(resto, str(resto))
 
 
+def autocompletar_rut(valor: str) -> str:
+    """
+    Normaliza un RUT y corrige o calcula automáticamente su dígito verificador
+    (módulo 11) cuando el usuario ingresa solo el cuerpo numérico o un DV
+    referencial en pruebas locales.
+    """
+    if not valor:
+        return valor
+    texto = str(valor).strip().upper()
+    if "-" in texto:
+        partes = texto.split("-", 1)
+        cuerpo = re.sub(r"\D", "", partes[0])
+        if 7 <= len(cuerpo) <= 8:
+            return f"{cuerpo}-{calcular_dv(cuerpo)}"
+    limpio = re.sub(r"[^0-9K]", "", texto)
+    if len(limpio) >= 2 and limpio[:-1].isdigit() and 7 <= len(limpio[:-1]) <= 8:
+        if calcular_dv(limpio[:-1]) == limpio[-1]:
+            return f"{limpio[:-1]}-{limpio[-1]}"
+    solo_digitos = re.sub(r"\D", "", texto)
+    if 7 <= len(solo_digitos) <= 8:
+        return f"{solo_digitos}-{calcular_dv(solo_digitos)}"
+    if len(solo_digitos) == 9:
+        cuerpo = solo_digitos[:-1]
+        return f"{cuerpo}-{calcular_dv(cuerpo)}"
+    return normalizar_rut(valor)
+
+
 def validar_rut(valor: str) -> None:
     """Valida formato y dígito verificador de un RUT chileno."""
     rut = normalizar_rut(valor)

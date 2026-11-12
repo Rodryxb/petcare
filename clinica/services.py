@@ -121,8 +121,15 @@ def controles_vigentes():
         )
         .filter(~Exists(reemplazo))
         .select_related("mascota__tutor", "aplicado_por")
+        .prefetch_related("notificaciones__enviado_por")
         .order_by("fecha_proximo_vencimiento", "mascota__nombre")
     )
+
+
+def proxima_vacuna_mas_cercana(hoy: date | None = None):
+    """Retorna el control vigente cuya próxima fecha de vencimiento (>= hoy) es la más cercana."""
+    hoy = hoy or timezone.localdate()
+    return controles_vigentes().filter(fecha_proximo_vencimiento__gte=hoy).first()
 
 
 def agrupar_recordatorios(dias_criticos: int = DIAS_CRITICOS_VACUNA, hoy: date | None = None) -> dict:
@@ -131,6 +138,7 @@ def agrupar_recordatorios(dias_criticos: int = DIAS_CRITICOS_VACUNA, hoy: date |
       * vencidas: fecha_proximo_vencimiento <  hoy
       * criticas: hoy <= vencimiento <= hoy + dias_criticos
       * al_dia:   vencimiento >  hoy + dias_criticos
+    Además entrega `proxima_mas_cercana` con la vacuna de vencimiento más cercano (>= hoy).
     """
     hoy = hoy or timezone.localdate()
     limite = hoy + timedelta(days=dias_criticos)
@@ -139,4 +147,5 @@ def agrupar_recordatorios(dias_criticos: int = DIAS_CRITICOS_VACUNA, hoy: date |
         "vencidas": base.filter(fecha_proximo_vencimiento__lt=hoy),
         "criticas": base.filter(Q(fecha_proximo_vencimiento__gte=hoy) & Q(fecha_proximo_vencimiento__lte=limite)),
         "al_dia": base.filter(fecha_proximo_vencimiento__gt=limite),
+        "proxima_mas_cercana": base.filter(fecha_proximo_vencimiento__gte=hoy).first(),
     }

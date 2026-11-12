@@ -12,13 +12,13 @@ from django.conf import settings
 from django.contrib.postgres.constraints import ExclusionConstraint
 from django.contrib.postgres.fields import RangeOperators
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import FileExtensionValidator, MaxValueValidator, MinValueValidator
 from django.db import IntegrityError, models, transaction
 from django.db.models import ExpressionWrapper, F, Q, Value
 from django.utils import timezone
 
 from .db import TsRange
-from .validators import normalizar_rut, validar_rut, validar_telefono
+from .validators import autocompletar_rut, normalizar_rut, validar_rut, validar_telefono
 
 ROL_VETERINARIO = "VET"
 LIMITE_VETERINARIO = {"rol": ROL_VETERINARIO, "is_active": True}
@@ -88,10 +88,10 @@ class Tutor(ModeloConTimestamps):
     def clean(self):
         # Se normaliza en clean() porque Django ejecuta validate_unique()
         # DESPUÉS de clean(): así la unicidad se evalúa sobre el RUT canónico.
-        self.rut = normalizar_rut(self.rut)
+        self.rut = autocompletar_rut(self.rut)
 
     def save(self, *args, **kwargs):
-        self.rut = normalizar_rut(self.rut)
+        self.rut = autocompletar_rut(self.rut)
         super().save(*args, **kwargs)
 
 
@@ -136,6 +136,26 @@ class Mascota(ModeloConTimestamps):
     )
     alergias = models.TextField("alergias", blank=True)
     observaciones = models.TextField("observaciones", blank=True)
+    foto = models.FileField(
+        "foto del animal/mascota",
+        upload_to="mascotas/",
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=["jpg", "jpeg", "png", "webp", "gif"])],
+    )
+    color = models.CharField("color", max_length=100, blank=True, default="")
+    condicion_corporal = models.PositiveSmallIntegerField(
+        "condición corporal (1 a 5)",
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+    )
+    cicatrices = models.BooleanField("cicatrices", default=False)
+    cirugias_esterilizacion = models.BooleanField("cirugías / esterilización", default=False)
+    datos_medioambientales = models.TextField("datos medioambientales", blank=True, default="")
+    nutricion = models.TextField("nutrición (qué come, cuántas veces)", blank=True, default="")
+    entorno = models.TextField("entorno (con qué animales comparte)", blank=True, default="")
+    numero_chip = models.CharField("N° chip", max_length=60, blank=True, default="")
     activo = models.BooleanField("activo", default=True, help_text="Desmarcar si falleció o se dio de baja.")
 
     class Meta:
@@ -171,6 +191,14 @@ class Mascota(ModeloConTimestamps):
         if meses or not anios:
             partes.append(f"{meses} mes{'es' if meses != 1 else ''}")
         return ", ".join(partes)
+
+    @property
+    def foto_url(self) -> str:
+        """URL pública de la fotografía de la mascota, si fue cargada."""
+        try:
+            return self.foto.url if self.foto else ""
+        except ValueError:
+            return ""
 
 
 # ══════════════════════════════════════════════════════════════
@@ -214,7 +242,7 @@ class Cita(ModeloConTimestamps):
     fecha = models.DateField("fecha", db_index=True)
     hora_inicio = models.TimeField("hora de inicio")
     hora_fin = models.TimeField("hora de término")
-    motivo = models.CharField("motivo de consulta", max_length=255)
+    motivo = models.CharField("motivo de consulta", max_length=500)
     estado = models.CharField(
         "estado",
         max_length=15,
@@ -509,6 +537,17 @@ class ControlVacuna(ModeloConTimestamps):
         related_name="controles_aplicados",
         verbose_name="aplicado por",
     )
+    es_externa = models.BooleanField(
+        "vacuna aplicada en otro lugar",
+        default=False,
+        help_text="Marca si la dosis fue aplicada en otra clínica o recinto externo.",
+    )
+    lugar_aplicacion = models.CharField(
+        "lugar / clínica de aplicación",
+        max_length=150,
+        blank=True,
+        help_text="Nombre de la clínica externa o lugar donde se aplicó.",
+    )
     observaciones = models.TextField("observaciones", blank=True)
 
     objects = ControlVacunaQuerySet.as_manager()
@@ -556,3 +595,290 @@ class ControlVacuna(ModeloConTimestamps):
     def save(self, *args, **kwargs):
         self.estado = self.calcular_estado()
         super().save(*args, **kwargs)
+
+
+class NotificacionVacuna(ModeloConTimestamps):
+    """Registro auditable de recordatorios enviados al tutor por correo o teléfono."""
+
+    class Canal(models.TextChoices):
+        EMAIL = "EMAIL", "Correo Electrónico"
+        WHATSAPP = "WHATSAPP", "Teléfono (WhatsApp)"
+        SMS = "SMS", "Teléfono (SMS / Llamada)"
+
+    control = models.ForeignKey(
+        ControlVacuna,
+        on_delete=models.CASCADE,
+        related_name="notificaciones",
+        verbose_name="control de vacuna",
+    )
+    canal = models.CharField("canal de envío", max_length=20, choices=Canal.choices, db_index=True)
+    destinatario = models.CharField("destinatario (correo o teléfono)", max_length=160)
+    asunto = models.CharField("asunto", max_length=200, blank=True)
+    mensaje = models.TextField("mensaje enviado")
+    estado_envio = models.CharField("estado del envío", max_length=30, default="ENVIADO")
+    enviado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notificaciones_vacunas_enviadas",
+        verbose_name="enviado por",
+    )
+
+    class Meta:
+        verbose_name = "notificación de vacuna"
+        verbose_name_plural = "notificaciones de vacunas"
+        ordering = ["-creado_en"]
+
+    def __str__(self):
+        return f"[{self.get_canal_display()}] {self.control.mascota.nombre} -> {self.destinatario}"
+
+
+# ══════════════════════════════════════════════════════════════
+# Catálogo de Servicios Clínicos y Tienda PetShop (POS / Caja)
+# ══════════════════════════════════════════════════════════════
+class ProductoServicio(ModeloConTimestamps):
+    """
+    Ítem de catálogo comercial y clínico:
+      - Servicios clínicos (Consultas $20.000, Vacunas $15.000, Inyecciones $5.000,
+        Anestesia, Eutanasia, Procedimientos).
+      - Productos de Tienda PetShop (Alimentos Perro/Gato/Exóticos, Antipulgas,
+        Calmantes, Collares, Camas, Areneros).
+    Soporta lectura mediante pistola de código de barras EAN-13 / Code128 o cámara.
+    """
+
+    class Categoria(models.TextChoices):
+        CONSULTA = "CONSULTA", "Consultas e Inyecciones"
+        VACUNA = "VACUNA", "Vacunas e Inmunización"
+        PABELLON = "PABELLON", "Anestesia, Cirugía y Eutanasia"
+        ALIMENTO_PERRO = "ALIMENTO_PERRO", "Alimento Perro"
+        ALIMENTO_GATO = "ALIMENTO_GATO", "Alimento Gato"
+        ALIMENTO_EXOTICO = "ALIMENTO_EXOTICO", "Alimento Animales Exóticos"
+        FARMACIA = "FARMACIA", "Antipulgas, Calmantes y Farmacia"
+        ACCESORIOS = "ACCESORIOS", "Collares, Camas y Areneros"
+
+    class EspecieObjetivo(models.TextChoices):
+        TODOS = "TODOS", "Todas las especies"
+        CANINO = "CANINO", "Canino (Perro)"
+        FELINO = "FELINO", "Felino (Gato)"
+        EXOTICO = "EXOTICO", "Exótico"
+
+    codigo_barras = models.CharField(
+        "código de barras",
+        max_length=32,
+        unique=True,
+        db_index=True,
+        help_text="Código EAN-13 o Code128 para lectura con escáner de caja.",
+    )
+    sku = models.CharField("SKU interno", max_length=32, unique=True, db_index=True)
+    nombre = models.CharField("nombre del producto o prestación", max_length=160)
+    categoria = models.CharField(
+        "categoría",
+        max_length=24,
+        choices=Categoria.choices,
+        db_index=True,
+    )
+    especie_objetivo = models.CharField(
+        "especie objetivo",
+        max_length=12,
+        choices=EspecieObjetivo.choices,
+        default=EspecieObjetivo.TODOS,
+        db_index=True,
+    )
+    descripcion = models.TextField("descripción detallada", blank=True)
+    precio = models.PositiveIntegerField(
+        "precio unitario (CLP)",
+        validators=[MinValueValidator(100)],
+    )
+    stock = models.PositiveIntegerField(
+        "stock disponible",
+        default=100,
+        help_text="Para prestaciones médicas con es_servicio=True el stock es referencial.",
+    )
+    stock_minimo = models.PositiveIntegerField(
+        "stock mínimo de alerta",
+        default=5,
+        help_text="Umbral bajo el cual el ítem aparece en alerta de reposición.",
+    )
+    lote = models.CharField("lote / serie", max_length=40, blank=True, default="")
+    fecha_vencimiento = models.DateField(
+        "fecha de vencimiento del lote",
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Fecha de caducidad de vacunas, medicamentos o alimentos en stock.",
+    )
+    es_servicio = models.BooleanField(
+        "es prestación médica",
+        default=False,
+        help_text="Si está activo, corresponde a consulta, vacuna, inyección o procedimiento clínico.",
+    )
+    imagen_url = models.TextField("URL o ilustración de imagen", blank=True)
+    destacado = models.BooleanField("destacado en caja/tienda", default=False)
+    activo = models.BooleanField("activo", default=True)
+
+    class Meta:
+        verbose_name = "producto o servicio"
+        verbose_name_plural = "productos y servicios (POS / Tienda)"
+        ordering = ["categoria", "nombre"]
+        indexes = [
+            models.Index(fields=["categoria", "activo"], name="prod_cat_activo_idx"),
+        ]
+
+    def __str__(self):
+        return f"[{self.codigo_barras}] {self.nombre} (${self.precio:,})"
+
+    def calcular_dias_vencimiento_lote(self, hoy=None) -> int | None:
+        if not self.fecha_vencimiento:
+            return None
+        fecha_ref = hoy or timezone.localdate()
+        return (self.fecha_vencimiento - fecha_ref).days
+
+    def calcular_estado_vencimiento_lote(self, dias_alerta: int = 30, hoy=None) -> str:
+        dias = self.calcular_dias_vencimiento_lote(hoy=hoy)
+        if dias is None:
+            return "SIN_VENCIMIENTO"
+        if dias < 0:
+            return "VENCIDO"
+        if dias <= 7:
+            return "CRITICO"
+        if dias <= dias_alerta:
+            return "POR_VENCER"
+        return "VIGENTE"
+
+    @property
+    def controla_stock_fisico(self) -> bool:
+        """Indica si el ítem controla stock real o dosis/insumos clínicos."""
+        return (not self.es_servicio) or self.categoria in (
+            self.Categoria.VACUNA,
+            self.Categoria.PABELLON,
+        )
+
+    def calcular_estado_stock(self) -> str:
+        if not self.controla_stock_fisico:
+            return "SERVICIO"
+        if self.stock <= 0:
+            return "AGOTADO"
+        if self.stock <= self.stock_minimo:
+            return "BAJO"
+        return "OPTIMO"
+
+
+# ══════════════════════════════════════════════════════════════
+# Orden de Pago / Boleta Electrónica (Terminal POS)
+# ══════════════════════════════════════════════════════════════
+class OrdenPago(ModeloConTimestamps):
+    """
+    Transacción de caja (POS) por cobro de consultas, vacunas, procedimientos
+    y/o productos de la Tienda PetShop.
+    """
+
+    class MetodoPago(models.TextChoices):
+        TARJETA_DEBITO = "TARJETA_DEBITO", "Tarjeta de Débito (Redcompra)"
+        TARJETA_CREDITO = "TARJETA_CREDITO", "Tarjeta de Crédito"
+        EFECTIVO = "EFECTIVO", "Efectivo"
+        TRANSFERENCIA = "TRANSFERENCIA", "Transferencia Bancaria"
+
+    class Estado(models.TextChoices):
+        PAGADO = "PAGADO", "Pagado"
+        ANULADO = "ANULADO", "Anulado"
+
+    numero_boleta = models.CharField(
+        "número de boleta",
+        max_length=30,
+        unique=True,
+        db_index=True,
+    )
+    tutor = models.ForeignKey(
+        Tutor,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ordenes_pago",
+        verbose_name="tutor / cliente",
+    )
+    mascota = models.ForeignKey(
+        Mascota,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ordenes_pago",
+        verbose_name="paciente asociado",
+    )
+    cita = models.ForeignKey(
+        Cita,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ordenes_pago",
+        verbose_name="cita asociada",
+    )
+    cajero = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="ventas_registradas",
+        verbose_name="cajero / personal",
+    )
+    metodo_pago = models.CharField(
+        "método de pago",
+        max_length=20,
+        choices=MetodoPago.choices,
+        default=MetodoPago.TARJETA_DEBITO,
+        db_index=True,
+    )
+    marca_tarjeta = models.CharField("marca tarjeta", max_length=30, blank=True)
+    ultimos_4_digitos = models.CharField("últimos 4 dígitos", max_length=4, blank=True)
+    cuotas = models.PositiveSmallIntegerField("cuotas", default=1)
+    codigo_autorizacion = models.CharField("código de autorización POS", max_length=24, blank=True)
+    subtotal_neto = models.PositiveIntegerField("subtotal neto (CLP)", default=0)
+    iva = models.PositiveIntegerField("IVA 19% (CLP)", default=0)
+    descuento = models.PositiveIntegerField("descuento (CLP)", default=0)
+    total = models.PositiveIntegerField("total pagado (CLP)", default=0)
+    monto_recibido = models.PositiveIntegerField("monto recibido (CLP)", default=0)
+    vuelto = models.PositiveIntegerField("vuelto (CLP)", default=0)
+    estado = models.CharField(
+        "estado",
+        max_length=12,
+        choices=Estado.choices,
+        default=Estado.PAGADO,
+        db_index=True,
+    )
+    observaciones = models.CharField("observaciones", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "orden de pago / boleta"
+        verbose_name_plural = "órdenes de pago y boletas"
+        ordering = ["-creado_en"]
+
+    def __str__(self):
+        return f"{self.numero_boleta} — ${self.total:,} ({self.get_metodo_pago_display()})"
+
+
+class DetalleOrdenPago(models.Model):
+    """Línea de detalle de una OrdenPago (carrito de caja/tienda)."""
+
+    orden = models.ForeignKey(
+        OrdenPago,
+        on_delete=models.CASCADE,
+        related_name="detalles",
+        verbose_name="orden de pago",
+    )
+    producto = models.ForeignKey(
+        ProductoServicio,
+        on_delete=models.PROTECT,
+        related_name="ventas",
+        verbose_name="producto o servicio",
+    )
+    nombre_item = models.CharField("descripción ítem", max_length=160)
+    codigo_barras = models.CharField("código de barras", max_length=32)
+    cantidad = models.PositiveSmallIntegerField("cantidad", default=1, validators=[MinValueValidator(1)])
+    precio_unitario = models.PositiveIntegerField("precio unitario (CLP)")
+    subtotal = models.PositiveIntegerField("subtotal línea (CLP)")
+
+    class Meta:
+        verbose_name = "detalle de pago"
+        verbose_name_plural = "detalles de pago"
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.cantidad}x {self.nombre_item} (${self.subtotal:,})"

@@ -59,9 +59,41 @@
           <span class="pc-hide-collapsed">Ficha Clínica</span>
         </a>
 
-        <a href="{% url 'recordatorios' %}" class="pc-nav-link {% if pagina_activa == 'recordatorios' %}active{% endif %}" title="Semáforo de Vacunas y Controles">
+        <a href="{% url 'recordatorios' %}" class="pc-nav-link {% if pagina_activa == 'recordatorios' %}active{% endif %}" title="Cuenta Regresiva de Vacunas y Controles">
           <i class="bi bi-shield-plus"></i>
           <span class="pc-hide-collapsed">Recordatorios Vacunas</span>
+        </a>
+
+        <a href="{% url 'avisos_clientes' %}" class="pc-nav-link {% if pagina_activa == 'avisos_clientes' %}active{% endif %} justify-content-between" title="Alertas de proximidad y avisos por correo o teléfono">
+          <span class="d-inline-flex align-items-center gap-2 min-w-0">
+            <i class="bi bi-megaphone-fill"></i>
+            <span class="pc-hide-collapsed">Avisos a clientes</span>
+          </span>
+          {% if sidebar_avisos_count %}
+          <span class="badge rounded-pill text-bg-warning pc-hide-collapsed" style="font-size: 0.68rem;">{{ sidebar_avisos_count }}</span>
+          {% endif %}
+        </a>
+
+        <a href="{% url 'stock_vencimientos' %}" class="pc-nav-link {% if pagina_activa == 'stock_vencimientos' %}active{% endif %} justify-content-between" title="Control de Stock, Lotes y Vacunas o Productos por Vencer">
+          <span class="d-inline-flex align-items-center gap-2 min-w-0">
+            <i class="bi bi-box-seam-fill"></i>
+            <span class="pc-hide-collapsed">Stock y vencimientos</span>
+          </span>
+          {% if sidebar_stock_count %}
+          <span class="badge rounded-pill text-bg-danger pc-hide-collapsed" style="font-size: 0.68rem;">{{ sidebar_stock_count }}</span>
+          {% endif %}
+        </a>
+
+        <div class="pc-nav-section pc-hide-collapsed mt-3">Comercial y Caja POS</div>
+
+        <a href="{% url 'caja_pos' %}" class="pc-nav-link {% if pagina_activa == 'caja_pos' %}active{% endif %}" title="Caja Clínica POS (Supermercado / Cobro Consultas y Vacunas)">
+          <i class="bi bi-upc-scan"></i>
+          <span class="pc-hide-collapsed">Caja y Pagos POS</span>
+        </a>
+
+        <a href="{% url 'tienda' %}" class="pc-nav-link {% if pagina_activa == 'tienda' %}active{% endif %}" title="Tienda PetShop y Consultor de Precios">
+          <i class="bi bi-bag-heart-fill"></i>
+          <span class="pc-hide-collapsed">Tienda PetShop</span>
         </a>
 
         <div class="pc-nav-section pc-hide-collapsed mt-3">Administración</div>

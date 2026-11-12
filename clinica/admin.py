@@ -18,7 +18,17 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
 
-from .models import Cita, ControlVacuna, FichaClinica, Mascota, Tutor
+from .models import (
+    Cita,
+    ControlVacuna,
+    DetalleOrdenPago,
+    FichaClinica,
+    Mascota,
+    NotificacionVacuna,
+    OrdenPago,
+    ProductoServicio,
+    Tutor,
+)
 
 # ══════════════════════════════════════════════════════════════
 # Cabeceras del sitio
@@ -133,7 +143,7 @@ class VencimientoFilter(admin.SimpleListFilter):
     def lookups(self, request, model_admin):
         return [
             ("vencidos", "⛔ Vencidos"),
-            ("proximos", f"⚠ Vencen en ≤ {DIAS_ALERTA_VENCIMIENTO} días"),
+            ("proximos", f"⚠ Vencen en los próximos {DIAS_ALERTA_VENCIMIENTO} días"),
             ("vigentes", "✔ Vigentes"),
             ("sin_fecha", "Sin fecha de vencimiento"),
         ]
@@ -533,3 +543,76 @@ class ControlVacunaAdmin(BusquedaRutMixin, AuditoriaMixin, admin.ModelAdmin):
     def actualizar_estados(self, request, queryset):
         n = queryset.actualizar_vencidos()
         self.message_user(request, f"{n} control(es) marcado(s) como VENCIDO.", messages.INFO)
+
+
+# ══════════════════════════════════════════════════════════════
+# Catálogo POS y Tienda PetShop
+# ══════════════════════════════════════════════════════════════
+@admin.register(ProductoServicio)
+class ProductoServicioAdmin(AuditoriaMixin, admin.ModelAdmin):
+    list_display = (
+        "codigo_barras",
+        "sku",
+        "nombre",
+        "categoria",
+        "especie_objetivo",
+        "precio_clp",
+        "stock",
+        "stock_minimo",
+        "lote",
+        "fecha_vencimiento",
+        "es_servicio",
+        "activo",
+    )
+    list_display_links = ("codigo_barras", "nombre")
+    list_filter = ("categoria", "especie_objetivo", "es_servicio", "fecha_vencimiento", "activo")
+    search_fields = ("codigo_barras", "sku", "nombre", "lote", "descripcion")
+    list_per_page = 50
+
+    @admin.display(description="Precio CLP", ordering="precio")
+    def precio_clp(self, obj):
+        return f"${obj.precio:,.0f}".replace(",", ".")
+
+
+class DetalleOrdenPagoInline(admin.TabularInline):
+    model = DetalleOrdenPago
+    extra = 0
+    readonly_fields = ("producto", "nombre_item", "codigo_barras", "cantidad", "precio_unitario", "subtotal")
+
+
+@admin.register(OrdenPago)
+class OrdenPagoAdmin(AuditoriaMixin, admin.ModelAdmin):
+    list_display = (
+        "numero_boleta",
+        "creado_en",
+        "tutor",
+        "mascota",
+        "metodo_pago",
+        "total_clp",
+        "codigo_autorizacion",
+        "cajero",
+        "estado",
+    )
+    list_filter = ("metodo_pago", "estado", "creado_en")
+    search_fields = ("numero_boleta", "codigo_autorizacion", "tutor__rut", "tutor__apellidos", "mascota__nombre")
+    inlines = (DetalleOrdenPagoInline,)
+
+    @admin.display(description="Total CLP", ordering="total")
+    def total_clp(self, obj):
+        return f"${obj.total:,.0f}".replace(",", ".")
+
+
+@admin.register(NotificacionVacuna)
+class NotificacionVacunaAdmin(admin.ModelAdmin):
+    """Registro de recordatorios de vacunas enviados por correo o teléfono."""
+
+    list_display = ("id", "control", "canal", "destinatario", "estado_envio", "enviado_por", "creado_en")
+    list_filter = ("canal", "estado_envio", "creado_en")
+    search_fields = (
+        "destinatario",
+        "asunto",
+        "control__nombre_producto",
+        "control__mascota__nombre",
+        "control__mascota__tutor__apellidos",
+    )
+    readonly_fields = ("creado_en",)

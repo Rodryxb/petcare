@@ -4,6 +4,83 @@
 {% block page_header %}Agenda Clínica de Citas{% endblock %}
 {% block page_subtitle %}Calendario interactivo con control anti-solapamiento por veterinario{% endblock %}
 
+{% block extra_css %}
+<style>
+  .pc-motivos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+    gap: 0.45rem;
+    max-height: 290px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+  .pc-motivo-option {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 10px;
+    background: rgba(11, 15, 25, 0.72);
+    border: 1px solid var(--pc-border);
+    color: #cbd5e1;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    font-size: 0.82rem;
+    line-height: 1.2;
+  }
+  .pc-motivo-option:hover {
+    border-color: rgba(6, 182, 212, 0.55);
+    color: #f8fafc;
+  }
+  .pc-motivo-check {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .pc-motivo-tick {
+    width: 19px;
+    height: 19px;
+    min-width: 19px;
+    border-radius: 6px;
+    border: 1.5px solid #475569;
+    background: rgba(15, 23, 42, 0.9);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: transparent;
+    font-size: 0.78rem;
+    transition: all 0.15s ease;
+  }
+  .pc-motivo-option.is-checked {
+    background: rgba(6, 182, 212, 0.14);
+    border-color: var(--pc-cyan);
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px rgba(6, 182, 212, 0.25);
+  }
+  .pc-motivo-option.is-checked .pc-motivo-tick {
+    background: var(--pc-emerald);
+    border-color: var(--pc-emerald);
+    color: #052e16;
+  }
+  .pc-motivo-option.is-otro {
+    border-style: dashed;
+    border-color: rgba(245, 158, 11, 0.45);
+  }
+  .pc-motivo-option.is-otro.is-checked {
+    border-style: solid;
+    background: rgba(245, 158, 11, 0.14);
+    border-color: var(--pc-amber);
+  }
+  .pc-motivo-option.is-otro.is-checked .pc-motivo-tick {
+    background: var(--pc-amber);
+    border-color: var(--pc-amber);
+    color: #1c1917;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- ═══════════════════════════════════════════════════════════
      Barra Superior: Filtro de Veterinario + Leyenda de Estados
@@ -49,7 +126,7 @@
      Modal: Agendar / Editar Cita con Detector Anti-Solapamiento
      ═══════════════════════════════════════════════════════════ -->
 <div class="modal fade" id="modalCita" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <form class="modal-content" id="form-cita" onsubmit="guardarCita(event)">
       <div class="modal-header">
         <h5 class="modal-title fw-bold text-white" id="modalCitaTitulo">
@@ -64,21 +141,100 @@
           <div class="d-flex align-items-start gap-2">
             <i class="bi bi-exclamation-octagon-fill fs-5 text-danger"></i>
             <div>
-              <div class="fw-bold">Conflicto de Horario Detectado</div>
+              <div class="fw-bold">Atención</div>
               <div id="cita-alerta-texto"></div>
             </div>
           </div>
         </div>
 
         <div class="row g-3">
-          <div class="col-12">
-            <label class="form-label small text-secondary">Paciente (Mascota) *</label>
-            <select id="cita-mascota" class="form-select" required>
-              <option value="">Seleccione mascota...</option>
-              {% for m in mascotas %}
-              <option value="{{ m.id }}">{{ m.nombre }} ({{ m.get_especie_display }}) — Tutor: {{ m.tutor.nombre_completo }} [{{ m.tutor.rut }}]</option>
+          <div class="col-md-6">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label small text-secondary mb-0">Tutor Responsable</label>
+              <button type="button" class="btn btn-link btn-sm text-info p-0 text-decoration-none" onclick="toggleRegistroRapidoCita()">
+                <i class="bi bi-person-plus-fill me-1"></i>+ Nuevo Tutor / Mascota
+              </button>
+            </div>
+            <select id="cita-tutor" class="form-select" onchange="filtrarMascotasPorTutorCita()">
+              <option value="">Todos los tutores registrados...</option>
+              {% for t in tutores %}
+              <option value="{{ t.id }}">{{ t.nombre_completo }} [{{ t.rut }}]</option>
               {% endfor %}
             </select>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label small text-secondary mb-1">Paciente (Mascota) *</label>
+            <select id="cita-mascota" class="form-select" required onchange="sincronizarTutorDesdeMascota()">
+              <option value="">Seleccione mascota...</option>
+              {% for m in mascotas %}
+              <option value="{{ m.id }}" data-tutor-id="{{ m.tutor_id }}">{{ m.nombre }} ({{ m.get_especie_display }}) — Tutor: {{ m.tutor.nombre_completo }} [{{ m.tutor.rut }}]</option>
+              {% endfor %}
+            </select>
+            <div id="aviso-tutor-sin-mascota" class="small text-warning mt-1 d-none">
+              <i class="bi bi-exclamation-circle me-1"></i>Este tutor aún no tiene mascotas.
+              <button type="button" class="btn btn-link btn-sm text-info p-0 ms-1" onclick="toggleRegistroRapidoCita(true)">Agregar mascota aquí</button>
+            </div>
+          </div>
+
+          <!-- Panel desplegable para crear Tutor + Mascota directamente al agendar la cita -->
+          <div class="col-12 d-none" id="panel-registro-rapido-cita">
+            <div class="p-3 rounded-3" style="background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.35);">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0 text-info fw-bold small">
+                  <i class="bi bi-lightning-charge-fill me-1"></i>Registro Rápido de Tutor y Paciente en Agenda
+                </h6>
+                <button type="button" class="btn-close btn-close-white btn-sm" onclick="toggleRegistroRapidoCita(false)"></button>
+              </div>
+              <div id="alerta-rapido-cita" class="alert alert-danger d-none small py-1 mb-2"></div>
+
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="rapido-usar-tutor-existente" onchange="actualizarModoRapidoCita()" />
+                <label class="form-check-label small text-light" for="rapido-usar-tutor-existente">
+                  Asignar mascota al tutor ya seleccionado arriba
+                </label>
+              </div>
+
+              <div id="bloque-rapido-nuevo-tutor" class="row g-2 mb-2">
+                <div class="col-md-3">
+                  <input type="text" id="rapido-rut" class="form-control form-control-sm font-monospace" placeholder="RUT (ej: 16543210-K) *" />
+                </div>
+                <div class="col-md-3">
+                  <input type="text" id="rapido-nombres" class="form-control form-control-sm" placeholder="Nombres Tutor *" />
+                </div>
+                <div class="col-md-3">
+                  <input type="text" id="rapido-apellidos" class="form-control form-control-sm" placeholder="Apellidos Tutor *" />
+                </div>
+                <div class="col-md-3">
+                  <input type="text" id="rapido-telefono" class="form-control form-control-sm" placeholder="Teléfono (+569...) *" />
+                </div>
+              </div>
+
+              <div class="row g-2 align-items-center">
+                <div class="col-md-4">
+                  <input type="text" id="rapido-mascota-nombre" class="form-control form-control-sm" placeholder="Nombre Mascota (ej: Max) *" />
+                </div>
+                <div class="col-md-3">
+                  <select id="rapido-mascota-especie" class="form-select form-select-sm">
+                    {% for valor, etiqueta in especies %}
+                    <option value="{{ valor }}">{{ etiqueta }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <select id="rapido-mascota-sexo" class="form-select form-select-sm">
+                    {% for valor, etiqueta in sexos %}
+                    <option value="{{ valor }}">{{ etiqueta }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-3 d-grid">
+                  <button type="button" class="btn btn-sm btn-pc-emerald" onclick="guardarTutorMascotaRapidoCita()">
+                    <i class="bi bi-check2-all me-1"></i>Crear y Seleccionar
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="col-12">
@@ -107,8 +263,67 @@
           </div>
 
           <div class="col-12">
-            <label class="form-label small text-secondary">Motivo de Consulta *</label>
-            <input type="text" id="cita-motivo" class="form-control" placeholder="Ej: Control anual, vacunación óctuple, decaimiento..." required />
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <label class="form-label small text-secondary mb-0">
+                Motivo de Consulta * <span class="text-info opacity-75">(marca con ✓ una o varias prestaciones)</span>
+              </label>
+              <span id="cita-motivos-contador" class="badge bg-secondary bg-opacity-25 text-secondary">
+                0 seleccionados
+              </span>
+            </div>
+
+            <div class="pc-motivos-grid" id="cita-motivos-grid">
+              {% for codigo, etiqueta, icono in motivos_consulta %}
+              <label class="pc-motivo-option" for="motivo-opt-{{ codigo }}">
+                <input
+                  type="checkbox"
+                  class="pc-motivo-check"
+                  id="motivo-opt-{{ codigo }}"
+                  value="{{ codigo }}"
+                  data-label="{{ etiqueta }}"
+                />
+                <span class="pc-motivo-tick"><i class="bi bi-check-lg fw-bold"></i></span>
+                <i class="bi {{ icono }} text-info opacity-75"></i>
+                <span>{{ etiqueta }}</span>
+              </label>
+              {% endfor %}
+
+              <label class="pc-motivo-option is-otro" for="motivo-opt-{{ otro_motivo_codigo|default:'OTRO' }}">
+                <input
+                  type="checkbox"
+                  class="pc-motivo-check"
+                  id="motivo-opt-{{ otro_motivo_codigo|default:'OTRO' }}"
+                  value="{{ otro_motivo_codigo|default:'OTRO' }}"
+                  data-label="{{ otro_motivo_etiqueta|default:'Otro motivo' }}"
+                />
+                <span class="pc-motivo-tick"><i class="bi bi-check-lg fw-bold"></i></span>
+                <i class="bi bi-pencil-square text-warning"></i>
+                <span>{{ otro_motivo_etiqueta|default:'Otro motivo' }}</span>
+              </label>
+            </div>
+
+            <!-- Ventana emergente de texto libre cuando se marca "Otro motivo" -->
+            <div
+              id="bloque-otro-motivo"
+              class="mt-2 p-2 rounded-3 d-none"
+              style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.45);"
+            >
+              <label for="cita-otro-motivo-texto" class="form-label small text-warning fw-semibold mb-1">
+                <i class="bi bi-pencil-square me-1"></i>Especifica el otro motivo no incluido en la lista *
+              </label>
+              <input
+                type="text"
+                id="cita-otro-motivo-texto"
+                class="form-control form-control-sm"
+                maxlength="255"
+                placeholder="Ej: Revisión por cojera, control post-parto, certificado de viaje..."
+              />
+            </div>
+
+            <div id="cita-motivos-preview" class="small text-secondary mt-2 d-none">
+              <i class="bi bi-list-check text-info me-1"></i>
+              <span class="text-light" id="cita-motivos-preview-texto"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -147,10 +362,22 @@
   let modalCitaInst = null;
   let modalDetalleInst = null;
   let eventosCargados = [];
+  let catalogoTutores = [];
+  let catalogoMascotas = [];
 
-  document.addEventListener("DOMContentLoaded", () => {
+  document.addEventListener("DOMContentLoaded", async () => {
     modalCitaInst = new bootstrap.Modal(document.getElementById("modalCita"));
     modalDetalleInst = new bootstrap.Modal(document.getElementById("modalDetalleCita"));
+
+    document.querySelectorAll(".pc-motivo-check").forEach((chk) => {
+      chk.addEventListener("change", () => {
+        actualizarUIMotivosCita(chk.value === "{{ otro_motivo_codigo|default:'OTRO' }}" && chk.checked);
+      });
+    });
+    const inputOtroMotivo = document.getElementById("cita-otro-motivo-texto");
+    if (inputOtroMotivo) {
+      inputOtroMotivo.addEventListener("input", () => actualizarUIMotivosCita(false));
+    }
 
     const calEl = document.getElementById("calendario-petcare");
     const selectorVet = document.getElementById("filtro-veterinario");
@@ -216,7 +443,261 @@
         calendario.refetchEvents();
       });
     }
+
+    await recargarSelectoresCita();
+
+    // Si viene desde Recepción con ?tutor_id= o ?mascota_id=, abrir el modal preseleccionado
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramMascota = urlParams.get("mascota_id");
+    const paramTutor = urlParams.get("tutor_id");
+    if (paramMascota || paramTutor) {
+      await abrirModalNuevaCita(null, "09:00", paramTutor, paramMascota);
+    }
   });
+
+  async function recargarSelectoresCita(tutorIdSel = null, mascotaIdSel = null) {
+    try {
+      const [resTutores, resMascotas] = await Promise.all([
+        PetCare.apiFetch("/api/tutores/?activo=true&sin_paginar=1"),
+        PetCare.apiFetch("/api/mascotas/?activo=true&sin_paginar=1"),
+      ]);
+      catalogoTutores = resTutores.results || resTutores;
+      catalogoMascotas = resMascotas.results || resMascotas;
+
+      const selectTutor = document.getElementById("cita-tutor");
+      const tutorPrevio = tutorIdSel || selectTutor.value;
+      selectTutor.innerHTML =
+        `<option value="">Todos los tutores registrados (${catalogoTutores.length})...</option>` +
+        catalogoTutores
+          .map((t) => `<option value="${t.id}">${PetCare.escapeHtml(t.nombre_completo)} [${PetCare.escapeHtml(t.rut)}]</option>`)
+          .join("");
+
+      if (tutorPrevio) {
+        selectTutor.value = String(tutorPrevio);
+      }
+
+      filtrarMascotasPorTutorCita(mascotaIdSel);
+    } catch (err) {
+      console.error("Error recargando selectores de cita:", err);
+    }
+  }
+
+  function filtrarMascotasPorTutorCita(mascotaIdPreseleccionada = null) {
+    const tutorId = Number(document.getElementById("cita-tutor").value || 0);
+    const selectMascota = document.getElementById("cita-mascota");
+    const avisoSinMascota = document.getElementById("aviso-tutor-sin-mascota");
+    const valorPrevio = mascotaIdPreseleccionada || selectMascota.value;
+
+    const filtradas = tutorId
+      ? catalogoMascotas.filter((m) => Number(m.tutor) === tutorId)
+      : catalogoMascotas;
+
+    selectMascota.innerHTML =
+      `<option value="">Seleccione mascota (${filtradas.length} disponible${filtradas.length === 1 ? "" : "s"})...</option>` +
+      filtradas
+        .map(
+          (m) =>
+            `<option value="${m.id}" data-tutor-id="${m.tutor}">${PetCare.escapeHtml(m.nombre)} (${PetCare.escapeHtml(m.especie_display)}) — Tutor: ${PetCare.escapeHtml(m.tutor_nombre)} [${PetCare.escapeHtml(m.tutor_rut)}]</option>`
+        )
+        .join("");
+
+    if (valorPrevio && filtradas.some((m) => String(m.id) === String(valorPrevio))) {
+      selectMascota.value = String(valorPrevio);
+    } else if (tutorId && filtradas.length === 1) {
+      selectMascota.value = String(filtradas[0].id);
+    }
+
+    if (avisoSinMascota) {
+      avisoSinMascota.classList.toggle("d-none", !(tutorId && filtradas.length === 0));
+    }
+  }
+
+  function sincronizarTutorDesdeMascota() {
+    const selectMascota = document.getElementById("cita-mascota");
+    const opt = selectMascota.selectedOptions[0];
+    if (opt && opt.dataset.tutorId) {
+      document.getElementById("cita-tutor").value = opt.dataset.tutorId;
+    }
+  }
+
+  function toggleRegistroRapidoCita(forzarEstado = null) {
+    const panel = document.getElementById("panel-registro-rapido-cita");
+    const mostrar = forzarEstado !== null ? forzarEstado : panel.classList.contains("d-none");
+    panel.classList.toggle("d-none", !mostrar);
+    document.getElementById("alerta-rapido-cita").classList.add("d-none");
+
+    const tutorSeleccionado = document.getElementById("cita-tutor").value;
+    const checkExistente = document.getElementById("rapido-usar-tutor-existente");
+    if (checkExistente) {
+      checkExistente.checked = Boolean(tutorSeleccionado);
+      actualizarModoRapidoCita();
+    }
+  }
+
+  function actualizarModoRapidoCita() {
+    const usarExistente = document.getElementById("rapido-usar-tutor-existente")?.checked;
+    const bloqueNuevoTutor = document.getElementById("bloque-rapido-nuevo-tutor");
+    if (bloqueNuevoTutor) {
+      bloqueNuevoTutor.classList.toggle("d-none", Boolean(usarExistente));
+    }
+  }
+
+  async function guardarTutorMascotaRapidoCita() {
+    const alerta = document.getElementById("alerta-rapido-cita");
+    alerta.classList.add("d-none");
+
+    const usarExistente = document.getElementById("rapido-usar-tutor-existente")?.checked;
+    let tutorId = Number(document.getElementById("cita-tutor").value || 0);
+    const nombreMascota = document.getElementById("rapido-mascota-nombre").value.trim();
+
+    if (!nombreMascota) {
+      alerta.textContent = "Ingrese el nombre de la mascota.";
+      alerta.classList.remove("d-none");
+      return;
+    }
+
+    try {
+      if (!usarExistente || !tutorId) {
+        const rut = document.getElementById("rapido-rut").value.trim();
+        const nombres = document.getElementById("rapido-nombres").value.trim();
+        const apellidos = document.getElementById("rapido-apellidos").value.trim();
+        const telefono = document.getElementById("rapido-telefono").value.trim();
+        if (!rut || !nombres || !apellidos || !telefono) {
+          alerta.textContent = "Complete RUT, nombres, apellidos y teléfono del nuevo tutor.";
+          alerta.classList.remove("d-none");
+          return;
+        }
+        const nuevoTutor = await PetCare.apiFetch("/api/tutores/", {
+          method: "POST",
+          body: { rut, nombres, apellidos, telefono },
+        });
+        tutorId = nuevoTutor.id;
+      }
+
+      const nuevaMascota = await PetCare.apiFetch("/api/mascotas/", {
+        method: "POST",
+        body: {
+          tutor: tutorId,
+          nombre: nombreMascota,
+          especie: document.getElementById("rapido-mascota-especie").value,
+          sexo: document.getElementById("rapido-mascota-sexo").value,
+        },
+      });
+
+      await recargarSelectoresCita(tutorId, nuevaMascota.id);
+      toggleRegistroRapidoCita(false);
+      PetCare.toast(`Paciente "${nuevaMascota.nombre}" registrado y seleccionado para la cita.`, "success");
+    } catch (err) {
+      alerta.textContent = err.message;
+      alerta.classList.remove("d-none");
+    }
+  }
+
+  const OTRO_CODIGO = "{{ otro_motivo_codigo|default:'OTRO' }}";
+  const OTRO_ETIQUETA = "{{ otro_motivo_etiqueta|default:'Otro motivo' }}";
+
+  function actualizarUIMotivosCita(enfocarOtro = false) {
+    const checkboxes = [...document.querySelectorAll(".pc-motivo-check")];
+    const seleccionadas = [];
+    let otroMarcado = false;
+
+    checkboxes.forEach((chk) => {
+      const card = chk.closest(".pc-motivo-option");
+      if (card) card.classList.toggle("is-checked", chk.checked);
+      if (chk.checked) {
+        if (chk.value === OTRO_CODIGO) {
+          otroMarcado = true;
+        } else {
+          seleccionadas.push(chk.dataset.label || chk.value);
+        }
+      }
+    });
+
+    const bloqueOtro = document.getElementById("bloque-otro-motivo");
+    const inputOtro = document.getElementById("cita-otro-motivo-texto");
+    if (bloqueOtro) {
+      bloqueOtro.classList.toggle("d-none", !otroMarcado);
+    }
+    if (otroMarcado && enfocarOtro && inputOtro) {
+      inputOtro.focus();
+    }
+
+    const totalMarcados = seleccionadas.length + (otroMarcado ? 1 : 0);
+    const contador = document.getElementById("cita-motivos-contador");
+    if (contador) {
+      contador.textContent = `${totalMarcados} ${totalMarcados === 1 ? "seleccionado" : "seleccionados"}`;
+      contador.className = totalMarcados > 0
+        ? "badge bg-info bg-opacity-25 text-info border border-info border-opacity-25"
+        : "badge bg-secondary bg-opacity-25 text-secondary";
+    }
+
+    const previewBox = document.getElementById("cita-motivos-preview");
+    const previewTexto = document.getElementById("cita-motivos-preview-texto");
+    const partesPreview = [...seleccionadas];
+    if (otroMarcado) {
+      const txt = (inputOtro ? inputOtro.value : "").trim();
+      partesPreview.push(txt ? `${OTRO_ETIQUETA}: ${txt}` : `${OTRO_ETIQUETA}: (pendiente de detallar)`);
+    }
+    if (previewBox && previewTexto) {
+      if (partesPreview.length > 0) {
+        previewTexto.textContent = partesPreview.join(", ");
+        previewBox.classList.remove("d-none");
+      } else {
+        previewTexto.textContent = "";
+        previewBox.classList.add("d-none");
+      }
+    }
+  }
+
+  function limpiarMotivosCita() {
+    document.querySelectorAll(".pc-motivo-check").forEach((chk) => {
+      chk.checked = false;
+    });
+    const inputOtro = document.getElementById("cita-otro-motivo-texto");
+    if (inputOtro) inputOtro.value = "";
+    actualizarUIMotivosCita(false);
+  }
+
+  function cargarMotivosEnFormulario(motivoTexto) {
+    limpiarMotivosCita();
+    const bruto = String(motivoTexto || "").trim();
+    if (!bruto) return;
+
+    let resto = bruto;
+    let textoOtro = "";
+    const prefijoRegex = new RegExp(`(?:,\\s*)?${OTRO_ETIQUETA}:\\s*(.+)$`, "i");
+    const matchOtro = bruto.match(prefijoRegex);
+    if (matchOtro) {
+      textoOtro = matchOtro[1].trim();
+      resto = bruto.slice(0, matchOtro.index).replace(/,\s*$/, "").trim();
+    }
+
+    const checkboxes = [...document.querySelectorAll(".pc-motivo-check")];
+    const extrasOtro = [];
+    if (resto) {
+      resto.split(/\s*,\s*/).forEach((segmento) => {
+        const clean = segmento.trim();
+        if (!clean) return;
+        const encontrado = checkboxes.find(
+          (chk) => chk.value !== OTRO_CODIGO && (chk.dataset.label || "").toLowerCase() === clean.toLowerCase()
+        );
+        if (encontrado) {
+          encontrado.checked = true;
+        } else {
+          extrasOtro.push(clean);
+        }
+      });
+    }
+
+    const textoCombinado = [...extrasOtro, textoOtro].filter(Boolean).join(", ");
+    if (textoCombinado) {
+      const chkOtro = document.getElementById(`motivo-opt-${OTRO_CODIGO}`);
+      const inputOtro = document.getElementById("cita-otro-motivo-texto");
+      if (chkOtro) chkOtro.checked = true;
+      if (inputOtro) inputOtro.value = textoCombinado;
+    }
+    actualizarUIMotivosCita(false);
+  }
 
   function sumarTreintaMinutos(horaStr) {
     const [h, m] = horaStr.split(":").map(Number);
@@ -226,12 +707,16 @@
     return `${nh}:${nm}`;
   }
 
-  function abrirModalNuevaCita(fecha = null, horaInicio = "09:00") {
+  async function abrirModalNuevaCita(fecha = null, horaInicio = "09:00", tutorId = null, mascotaId = null) {
     document.getElementById("form-cita").reset();
+    limpiarMotivosCita();
     document.getElementById("cita-id").value = "";
     document.getElementById("modalCitaTitulo").innerHTML = '<i class="bi bi-calendar2-plus text-info me-2"></i>Agendar Cita Clínica';
     document.getElementById("btn-submit-cita").innerHTML = '<i class="bi bi-check2-circle me-1"></i>Confirmar Reserva';
     document.getElementById("cita-alerta-solapamiento").classList.add("d-none");
+    document.getElementById("panel-registro-rapido-cita").classList.add("d-none");
+
+    await recargarSelectoresCita(tutorId, mascotaId);
 
     const vetFiltro = document.getElementById("filtro-veterinario").value;
     if (vetFiltro) {
@@ -249,24 +734,28 @@
     modalCitaInst.show();
   }
 
-  function editarCitaDesdeCalendario(citaId) {
+  async function editarCitaDesdeCalendario(citaId) {
     const ev = eventosCargados.find((e) => Number(e.id) === Number(citaId));
     if (!ev) return;
     const p = ev.extendedProps || {};
     modalDetalleInst.hide();
 
     document.getElementById("form-cita").reset();
+    limpiarMotivosCita();
     document.getElementById("cita-id").value = citaId;
     document.getElementById("modalCitaTitulo").innerHTML = `<i class="bi bi-pencil-square text-info me-2"></i>Reprogramar Cita #${citaId}`;
     document.getElementById("btn-submit-cita").innerHTML = '<i class="bi bi-save2 me-1"></i>Guardar Cambios';
     document.getElementById("cita-alerta-solapamiento").classList.add("d-none");
+    document.getElementById("panel-registro-rapido-cita").classList.add("d-none");
+
+    await recargarSelectoresCita(p.tutor_id, p.mascota_id);
 
     document.getElementById("cita-mascota").value = String(p.mascota_id);
     document.getElementById("cita-veterinario").value = String(p.veterinario_id);
     document.getElementById("cita-fecha").value = p.fecha;
     document.getElementById("cita-inicio").value = p.hora_inicio;
     document.getElementById("cita-fin").value = p.hora_fin;
-    document.getElementById("cita-motivo").value = p.motivo;
+    cargarMotivosEnFormulario(p.motivo);
 
     verificarSolapamientoEnVivo();
     modalCitaInst.show();
@@ -317,13 +806,30 @@
     const alertaTxt = document.getElementById("cita-alerta-texto");
     alertaBox.classList.add("d-none");
 
+    const motivosSeleccionados = [...document.querySelectorAll(".pc-motivo-check:checked")].map((c) => c.value);
+    const otroMarcado = motivosSeleccionados.includes(OTRO_CODIGO);
+    const otroTexto = (document.getElementById("cita-otro-motivo-texto")?.value || "").trim();
+
+    if (motivosSeleccionados.length === 0) {
+      alertaTxt.textContent = "Seleccione al menos un motivo de consulta con ✓.";
+      alertaBox.classList.remove("d-none");
+      return;
+    }
+    if (otroMarcado && !otroTexto) {
+      alertaTxt.textContent = "Especifique el texto en 'Otro motivo' antes de guardar la cita.";
+      alertaBox.classList.remove("d-none");
+      document.getElementById("cita-otro-motivo-texto")?.focus();
+      return;
+    }
+
     const payload = {
       mascota: Number(document.getElementById("cita-mascota").value),
       veterinario: Number(document.getElementById("cita-veterinario").value),
       fecha: document.getElementById("cita-fecha").value,
       hora_inicio: document.getElementById("cita-inicio").value,
       hora_fin: document.getElementById("cita-fin").value,
-      motivo: document.getElementById("cita-motivo").value.trim(),
+      motivos_seleccionados: motivosSeleccionados,
+      otro_motivo: otroTexto,
     };
 
     try {
@@ -339,6 +845,24 @@
     }
   }
 
+  function renderChipsMotivoDetalle(motivoTexto) {
+    const bruto = String(motivoTexto || "").trim();
+    if (!bruto) return '<span class="text-secondary">Sin especificar</span>';
+    const prefijoRegex = new RegExp(`(?:,\\s*)?(${OTRO_ETIQUETA}:\\s*.+)$`, "i");
+    const matchOtro = bruto.match(prefijoRegex);
+    let base = bruto;
+    let bloqueOtro = "";
+    if (matchOtro) {
+      bloqueOtro = matchOtro[1].trim();
+      base = bruto.slice(0, matchOtro.index).replace(/,\s*$/, "").trim();
+    }
+    const items = base ? base.split(/\s*,\s*/).filter(Boolean) : [];
+    if (bloqueOtro) items.push(bloqueOtro);
+    return `<div class="d-flex flex-wrap gap-1">${items
+      .map((t) => `<span class="badge bg-info bg-opacity-15 text-info border border-info border-opacity-25"><i class="bi bi-check2 me-1"></i>${PetCare.escapeHtml(t)}</span>`)
+      .join("")}</div>`;
+  }
+
   function mostrarDetalleCita(evento) {
     const p = evento.extendedProps;
     document.getElementById("detalle-titulo").textContent = `${p.mascota_nombre} (${p.especie})`;
@@ -351,8 +875,8 @@
       <div class="fw-semibold text-white mb-2">${PetCare.escapeHtml(p.tutor_nombre)} · <span class="font-monospace">${PetCare.escapeHtml(p.tutor_rut)}</span> (${PetCare.escapeHtml(p.tutor_telefono)})</div>
       <div class="small text-secondary mb-1">Veterinario Asignado</div>
       <div class="text-light mb-2">${PetCare.escapeHtml(p.veterinario_nombre)}</div>
-      <div class="small text-secondary mb-1">Motivo de Consulta</div>
-      <div class="text-light">${PetCare.escapeHtml(p.motivo)}</div>
+      <div class="small text-secondary mb-1">Motivo(s) de Consulta</div>
+      <div>${renderChipsMotivoDetalle(p.motivo)}</div>
     `;
 
     const botones = [];
@@ -366,6 +890,7 @@
     if (ES_ADMIN) {
       botones.push(`<button class="btn btn-sm btn-danger" onclick="eliminarCitaCalendario(${evento.id}, '${PetCare.escapeHtml(p.mascota_nombre).replace(/'/g, "\\'")}')"><i class="bi bi-trash3"></i> Borrar</button>`);
     }
+    botones.push(`<a href="/caja/?mascota_id=${p.mascota_id}&cita_id=${evento.id}" class="btn btn-sm btn-pc-emerald"><i class="bi bi-upc-scan me-1"></i>Cobrar en Caja</a>`);
     botones.push(`<a href="${p.ficha_url}?cita_id=${evento.id}" class="btn btn-sm btn-pc-cyan"><i class="bi bi-file-earmark-medical me-1"></i>Ir a Ficha Clínica</a>`);
 
     document.getElementById("detalle-acciones").innerHTML = botones.join(" ");

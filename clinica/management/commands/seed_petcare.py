@@ -11,6 +11,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
+from clinica.catalogo_pos import asegurar_catalogo_pos
 from clinica.models import Cita, ControlVacuna, FichaClinica, Mascota, Tutor
 from usuarios.models import AsistenciaPersonal, Usuario
 
@@ -238,6 +239,15 @@ class Command(BaseCommand):
                 "observaciones": "Requiere refuerzo anual inmediato.",
             },
             {
+                "mascota": mascotas["Thor"],
+                "tipo": ControlVacuna.Tipo.VACUNA,
+                "nombre_producto": "Vacuna Óctuple Canina",
+                "fecha_aplicacion": hoy - timedelta(days=15),
+                "fecha_proximo_vencimiento": hoy + timedelta(days=6),  # ALERTA 1 SEMANA
+                "aplicado_por": vet_principal,
+                "observaciones": "Refuerzo canino próximo en menos de una semana. Enviar aviso al tutor.",
+            },
+            {
                 "mascota": mascotas["Mishi"],
                 "tipo": ControlVacuna.Tipo.VACUNA,
                 "nombre_producto": "Vacuna Triple Felina",
@@ -281,8 +291,11 @@ class Command(BaseCommand):
                     defaults={"estado": est, "registrado_por": admin_user},
                 )
 
+        # 8. Catálogo de Servicios Clínicos (POS) y Productos de Tienda PetShop
+        total_catalogo = asegurar_catalogo_pos()
+
         self.stdout.write(
             self.style.SUCCESS(
-                "[OK] Datos iniciales de PetCare cargados correctamente (admin / dr.munoz / dr.suazo / recepcion -> PetCare2026!)."
+                f"[OK] Datos iniciales de PetCare cargados correctamente ({total_catalogo} ítems POS/Tienda activos)."
             )
         )

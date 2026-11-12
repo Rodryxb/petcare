@@ -1,0 +1,573 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Stock y Vencimientos | PetCare{% endblock %}
+{% block page_header %}Stock y Vencimientos{% endblock %}
+{% block page_subtitle %}Alertas arriba de lotes próximos a vencer, vacunas críticas, fármacos y reposición de inventario{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pc-alert-box-danger {
+        background: rgba(239, 68, 68, 0.12);
+        border: 1px solid rgba(239, 68, 68, 0.45);
+        border-radius: 14px;
+        padding: 1rem 1.15rem;
+    }
+    .pc-alert-box-amber {
+        background: rgba(245, 158, 11, 0.12);
+        border: 1px solid rgba(245, 158, 11, 0.45);
+        border-radius: 14px;
+        padding: 1rem 1.15rem;
+    }
+    .pc-alert-box-info {
+        background: rgba(6, 182, 212, 0.1);
+        border: 1px solid rgba(6, 182, 212, 0.4);
+        border-radius: 14px;
+        padding: 1rem 1.15rem;
+    }
+    .pc-filter-pill {
+        border: 1px solid var(--pc-border);
+        background: rgba(17, 24, 39, 0.85);
+        color: #cbd5e1;
+        border-radius: 999px;
+        padding: 0.38rem 0.9rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .pc-filter-pill.active {
+        background: rgba(6, 182, 212, 0.16);
+        border-color: var(--pc-cyan);
+        color: #67e8f9;
+    }
+    .pc-stock-bar {
+        width: 84px;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        overflow: hidden;
+    }
+    .pc-trash-btn {
+        background: rgba(239, 68, 68, 0.12);
+        border: 1px solid rgba(239, 68, 68, 0.35);
+        color: #fca5a5;
+    }
+    .pc-trash-btn:hover {
+        background: rgba(239, 68, 68, 0.28);
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 1. ALERTAS ARRIBA: VENCIMIENTOS DE VACUNAS / STOCK Y STOCK CRÍTICO -->
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="pc-alert-box-danger h-100">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="fw-bold text-danger"><i class="bi bi-exclamation-octagon-fill me-1"></i>Lotes Vencidos</span>
+                <span class="badge text-bg-danger fs-6" id="kpi-vencidos">0</span>
+            </div>
+            <div class="small text-light opacity-75" id="resumen-vencidos-txt">Revisando caducidad de vacunas y farmacia...</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="pc-alert-box-amber h-100">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="fw-bold text-warning"><i class="bi bi-hourglass-split me-1"></i>Vence pronto / Stock bajo</span>
+                <span class="badge text-bg-warning fs-6" id="kpi-por-vencer">0</span>
+            </div>
+            <div class="small text-light opacity-75" id="resumen-porvencer-txt">Revisando lotes próximos y mínimos...</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="pc-alert-box-info h-100">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="fw-bold text-info"><i class="bi bi-shield-exclamation me-1"></i>Vacunas de pacientes esta semana</span>
+                <span class="badge text-bg-info fs-6" id="kpi-vacunas-clientes">0</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center gap-2 mt-1">
+                <span class="small text-light opacity-75" id="resumen-clientes-txt">Refuerzos próximos</span>
+                <a href="{% url 'avisos_clientes' %}" class="btn btn-xs btn-outline-info py-0 px-2 small">Avisar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. BARRA DE FILTROS, BÚSQUEDA Y CREACIÓN -->
+<div class="pc-card p-3 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex flex-wrap gap-2" id="filtros-stock">
+            <button type="button" class="pc-filter-pill active" data-filter="ALERTAS">
+                <i class="bi bi-bell-fill text-warning me-1"></i>Con Alerta (<span id="cnt-alertas">0</span>)
+            </button>
+            <button type="button" class="pc-filter-pill" data-filter="VENCIDOS">
+                Lotes Vencidos (<span id="cnt-vencidos">0</span>)
+            </button>
+            <button type="button" class="pc-filter-pill" data-filter="POR_VENCER">
+                Vencen en {{ dias_alerta }} días (<span id="cnt-porvencer">0</span>)
+            </button>
+            <button type="button" class="pc-filter-pill" data-filter="STOCK_BAJO">
+                Stock Bajo / 0 (<span id="cnt-stockbajo">0</span>)
+            </button>
+            <button type="button" class="pc-filter-pill" data-filter="VACUNAS_INSUMOS">
+                Vacunas y Farmacia
+            </button>
+            <button type="button" class="pc-filter-pill" data-filter="TODOS">
+                Todo el Catálogo (<span id="cnt-todos">0</span>)
+            </button>
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <div class="input-group input-group-sm" style="width: 245px;">
+                <span class="input-group-text bg-transparent border-secondary text-secondary"><i class="bi bi-search"></i></span>
+                <input type="text" id="buscador-stock" class="form-control" placeholder="Buscar vacuna, lote, SKU o código...">
+            </div>
+            <button type="button" class="btn btn-sm btn-pc-cyan" id="btn-nuevo-item">
+                <i class="bi bi-plus-circle me-1"></i>Nuevo Stock / Vacuna
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 3. TABLA OPERATIVA DE STOCK, LOTES Y VENCIMIENTOS -->
+<div class="pc-card p-3">
+    <div class="table-responsive">
+        <table class="pc-table table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Vacuna / Producto</th>
+                    <th>Categoría</th>
+                    <th>Lote</th>
+                    <th>Vencimiento</th>
+                    <th>Stock / Mín.</th>
+                    <th>Estado</th>
+                    <th class="text-end">Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-stock">
+                <tr>
+                    <td colspan="7" class="text-center text-secondary py-4">
+                        <div class="spinner-border spinner-border-sm text-info me-2"></div>Cargando inventario y vencimientos...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MODAL 1: AJUSTAR / REPONER STOCK, LOTE Y VENCIMIENTO -->
+<div class="modal fade" id="modalAjusteStock" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-box-arrow-in-down text-info me-2"></i>Actualizar Stock y Lote</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAjusteStock">
+                <div class="modal-body">
+                    <input type="hidden" id="aj-id">
+                    <div id="aj-errores" class="alert alert-danger d-none py-2 px-3 small"></div>
+                    <div class="fw-bold text-white mb-1" id="aj-nombre">—</div>
+                    <div class="small text-secondary mb-3" id="aj-sku">—</div>
+
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label small text-secondary">Stock Disponible *</label>
+                            <input type="number" min="0" class="form-control" id="aj-stock" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-secondary">Stock Mínimo Alerta *</label>
+                            <input type="number" min="0" class="form-control" id="aj-minimo" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-secondary">N° de Lote / Serie</label>
+                            <input type="text" maxlength="40" class="form-control font-monospace" id="aj-lote" placeholder="Ej: LOT-VAC-2610">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-secondary">Fecha Vencimiento</label>
+                            <input type="date" class="form-control" id="aj-vencimiento">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-pc-cyan"><i class="bi bi-check2-circle me-1"></i>Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 2: AGREGAR NUEVO PRODUCTO / VACUNA A STOCK -->
+<div class="modal fade" id="modalNuevoItem" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-plus-circle text-info me-2"></i>Registrar Vacuna o Producto en Stock</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formNuevoItem">
+                <div class="modal-body">
+                    <div id="new-errores" class="alert alert-danger d-none py-2 px-3 small"></div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small text-secondary">Nombre *</label>
+                            <input type="text" class="form-control" id="new-nombre" required placeholder="Ej: Vacuna Sextuple Canina Lote B">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-secondary">SKU *</label>
+                            <input type="text" class="form-control font-monospace" id="new-sku" required placeholder="VAC-SX-01">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-secondary">Código Barras *</label>
+                            <input type="text" class="form-control font-monospace" id="new-barcode" required placeholder="7809990001">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-secondary">Categoría *</label>
+                            <select class="form-select" id="new-categoria" required>
+                                {% for val, label in categorias %}
+                                <option value="{{ val }}" {% if val == 'VACUNA' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-secondary">Especie</label>
+                            <select class="form-select" id="new-especie">
+                                {% for val, label in especies %}
+                                <option value="{{ val }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-secondary">Precio Unitario (CLP) *</label>
+                            <input type="number" min="100" step="100" class="form-control" id="new-precio" value="15000" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-secondary">Stock Inicial *</label>
+                            <input type="number" min="0" class="form-control" id="new-stock" value="12" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-secondary">Stock Mínimo *</label>
+                            <input type="number" min="0" class="form-control" id="new-minimo" value="5" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-secondary">N° Lote</label>
+                            <input type="text" class="form-control font-monospace" id="new-lote" placeholder="LOT-2026-01">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small text-secondary">Vencimiento</label>
+                            <input type="date" class="form-control" id="new-vencimiento">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-pc-cyan"><i class="bi bi-check2-circle me-1"></i>Guardar en Inventario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 3: CONFIRMAR BOTAR LOTE VENCIDO -->
+<div class="modal fade" id="modalDescartarLote" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-color: rgba(239, 68, 68, 0.45);">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-trash3-fill text-danger me-2"></i>Botar Lote Vencido / Dar de Baja</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="desc-id">
+                <div class="p-3 rounded mb-2" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);">
+                    <div class="fw-bold text-white" id="desc-nombre">—</div>
+                    <div class="small text-secondary" id="desc-detalle">—</div>
+                </div>
+                <p class="small text-secondary mb-0">
+                    Dejará el stock utilizable en <strong>0</strong> y marcará el lote como <code>[BOTADO]</code> para seguridad clínica.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btn-confirmar-descarte">Sí, Botar Lote</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const modalAjuste = new bootstrap.Modal(document.getElementById("modalAjusteStock"));
+    const modalNuevo = new bootstrap.Modal(document.getElementById("modalNuevoItem"));
+    const modalDescartar = new bootstrap.Modal(document.getElementById("modalDescartarLote"));
+
+    let inventario = {
+        vencidos: [],
+        por_vencer: [],
+        stock_bajo: [],
+        con_alerta: [],
+        vacunas_insumos: [],
+        vacunas_clientes_criticas: [],
+        todos: [],
+        resumen: {},
+    };
+    let filtro = "ALERTAS";
+
+    function fmtCL(iso) {
+        if (!iso) return "Sin vencimiento";
+        const p = String(iso).split("-");
+        return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : iso;
+    }
+
+    function badgeVencimiento(item) {
+        const est = item.estado_vencimiento;
+        const d = item.dias_para_vencer;
+        if (est === "SIN_VENCIMIENTO") return `<span class="text-secondary small">No caduca</span>`;
+        if (est === "VENCIDO") {
+            return `<div class="text-danger fw-bold small">${fmtCL(item.fecha_vencimiento)}</div><span class="badge text-bg-danger">Vencido hace ${Math.abs(d)}d</span>`;
+        }
+        if (est === "CRITICO") {
+            return `<div class="text-warning fw-bold small">${fmtCL(item.fecha_vencimiento)}</div><span class="badge text-bg-warning">${d === 0 ? "Vence HOY" : `En ${d} día(s)`}</span>`;
+        }
+        if (est === "POR_VENCER") {
+            return `<div class="text-warning small">${fmtCL(item.fecha_vencimiento)}</div><span class="badge bg-warning bg-opacity-20 text-warning">En ${d} días</span>`;
+        }
+        return `<div class="text-light small">${fmtCL(item.fecha_vencimiento)}</div><span class="text-success small">Vigente (${d}d)</span>`;
+    }
+
+    function renderTabla() {
+        const q = document.getElementById("buscador-stock").value.trim().toLowerCase();
+        let base = inventario.todos;
+        if (filtro === "ALERTAS") base = inventario.con_alerta;
+        else if (filtro === "VENCIDOS") base = inventario.vencidos;
+        else if (filtro === "POR_VENCER") base = inventario.por_vencer;
+        else if (filtro === "STOCK_BAJO") base = inventario.stock_bajo;
+        else if (filtro === "VACUNAS_INSUMOS") base = inventario.vacunas_insumos;
+
+        const lista = base.filter((p) => {
+            if (!q) return true;
+            return `${p.nombre} ${p.sku} ${p.codigo_barras} ${p.lote} ${p.categoria_display}`.toLowerCase().includes(q);
+        });
+
+        const tbody = document.getElementById("tbody-stock");
+        if (!lista.length) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-secondary py-4">No hay ítems en esta vista.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = lista.map((p) => {
+            const pct = p.stock_minimo > 0 ? Math.min(100, Math.round((p.stock / Math.max(p.stock_minimo * 2, 1)) * 100)) : 100;
+            const barColor = p.estado_stock === "AGOTADO" ? "var(--pc-danger)" : (p.estado_stock === "BAJO" ? "var(--pc-amber)" : "var(--pc-emerald)");
+
+            let estadoBadges = [];
+            if (p.estado_vencimiento === "VENCIDO") estadoBadges.push(`<span class="badge text-bg-danger">Caducado</span>`);
+            else if (p.estado_vencimiento === "CRITICO" || p.estado_vencimiento === "POR_VENCER") estadoBadges.push(`<span class="badge text-bg-warning">Por vencer</span>`);
+            if (p.estado_stock === "AGOTADO") estadoBadges.push(`<span class="badge text-bg-danger">Sin stock</span>`);
+            else if (p.estado_stock === "BAJO") estadoBadges.push(`<span class="badge bg-warning bg-opacity-20 text-warning">Stock bajo</span>`);
+            if (!estadoBadges.length) estadoBadges.push(`<span class="badge text-bg-success">Óptimo</span>`);
+
+            const btnBotar = p.stock > 0 && ["VENCIDO", "CRITICO", "POR_VENCER"].includes(p.estado_vencimiento)
+                ? `<button type="button" class="btn btn-sm pc-trash-btn js-descartar" data-id="${p.id}" title="Botar lote vencido"><i class="bi bi-trash3-fill"></i></button>`
+                : "";
+
+            return `
+                <tr>
+                    <td>
+                        <div class="fw-semibold text-white">${PetCare.escapeHtml(p.nombre)}</div>
+                        <div class="small text-secondary font-monospace">${PetCare.escapeHtml(p.sku)} · ${PetCare.escapeHtml(p.codigo_barras)}</div>
+                    </td>
+                    <td class="small text-info">${PetCare.escapeHtml(p.categoria_display)}</td>
+                    <td class="small font-monospace text-light">${PetCare.escapeHtml(p.lote || "—")}</td>
+                    <td>${badgeVencimiento(p)}</td>
+                    <td>
+                        <div class="fw-bold ${p.estado_stock === "AGOTADO" ? "text-danger" : (p.estado_stock === "BAJO" ? "text-warning" : "text-white")}">
+                            ${p.stock} <span class="small fw-normal text-secondary">/ mín ${p.stock_minimo}</span>
+                        </div>
+                        <div class="pc-stock-bar mt-1"><div style="width:${pct}%; height:100%; background:${barColor};"></div></div>
+                    </td>
+                    <td><div class="d-flex flex-wrap gap-1">${estadoBadges.join("")}</div></td>
+                    <td class="text-end">
+                        <div class="d-inline-flex gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-light js-delta" data-id="${p.id}" data-delta="-1" title="Descontar 1 unidad / dosis">-1</button>
+                            <button type="button" class="btn btn-sm btn-pc-cyan js-ajustar" data-id="${p.id}" title="Reponer o editar lote">
+                                <i class="bi bi-pencil-square me-1"></i>Lote / Stock
+                            </button>
+                            ${btnBotar}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+    }
+
+    async function cargarStock() {
+        try {
+            const d = await PetCare.apiFetch("/api/productos/stock-vencimientos/");
+            inventario = d;
+            const r = d.resumen || {};
+
+            document.getElementById("kpi-vencidos").textContent = r.vencidos || 0;
+            document.getElementById("kpi-por-vencer").textContent = (r.por_vencer || 0) + (r.stock_bajo || 0);
+            document.getElementById("kpi-vacunas-clientes").textContent = r.vacunas_clientes_por_vencer || 0;
+
+            document.getElementById("resumen-vencidos-txt").textContent =
+                r.vencidos ? `${r.vencidos} lote(s) vencido(s) deben botarse o reemplazarse.` : "Sin lotes caducados actualmente.";
+            document.getElementById("resumen-porvencer-txt").textContent =
+                `${r.por_vencer || 0} por vencer pronto · ${r.stock_bajo || 0} con stock mínimo.`;
+
+            const cliCrit = d.vacunas_clientes_criticas || [];
+            document.getElementById("resumen-clientes-txt").textContent =
+                cliCrit.length ? `${cliCrit.map((x) => x.mascota_nombre).slice(0, 3).join(", ")}` : "Sin pacientes con vacunas esta semana";
+
+            document.getElementById("cnt-alertas").textContent = r.total_alertas || 0;
+            document.getElementById("cnt-vencidos").textContent = r.vencidos || 0;
+            document.getElementById("cnt-porvencer").textContent = r.por_vencer || 0;
+            document.getElementById("cnt-stockbajo").textContent = r.stock_bajo || 0;
+            document.getElementById("cnt-todos").textContent = r.total_productos || 0;
+
+            renderTabla();
+        } catch (err) {
+            PetCare.toast(err.message || "Error al cargar inventario.", "error");
+        }
+    }
+
+    document.querySelectorAll("#filtros-stock .pc-filter-pill").forEach((b) => {
+        b.addEventListener("click", () => {
+            document.querySelectorAll("#filtros-stock .pc-filter-pill").forEach((x) => x.classList.remove("active"));
+            b.classList.add("active");
+            filtro = b.dataset.filter;
+            renderTabla();
+        });
+    });
+
+    document.getElementById("buscador-stock").addEventListener("input", renderTabla);
+
+    document.getElementById("btn-nuevo-item").addEventListener("click", () => {
+        document.getElementById("formNuevoItem").reset();
+        document.getElementById("new-errores").classList.add("d-none");
+        document.getElementById("new-precio").value = 15000;
+        document.getElementById("new-stock").value = 12;
+        document.getElementById("new-minimo").value = 5;
+        modalNuevo.show();
+    });
+
+    document.getElementById("formNuevoItem").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errBox = document.getElementById("new-errores");
+        errBox.classList.add("d-none");
+        const cat = document.getElementById("new-categoria").value;
+        const venc = document.getElementById("new-vencimiento").value;
+        try {
+            await PetCare.apiFetch("/api/productos/", {
+                method: "POST",
+                body: {
+                    nombre: document.getElementById("new-nombre").value.trim(),
+                    sku: document.getElementById("new-sku").value.trim().toUpperCase(),
+                    codigo_barras: document.getElementById("new-barcode").value.trim(),
+                    categoria: cat,
+                    especie_objetivo: document.getElementById("new-especie").value,
+                    precio: parseInt(document.getElementById("new-precio").value, 10),
+                    stock: parseInt(document.getElementById("new-stock").value, 10),
+                    stock_minimo: parseInt(document.getElementById("new-minimo").value, 10),
+                    lote: document.getElementById("new-lote").value.trim(),
+                    fecha_vencimiento: venc || null,
+                    es_servicio: ["CONSULTA", "VACUNA", "PABELLON"].includes(cat),
+                    activo: true,
+                },
+            });
+            modalNuevo.hide();
+            PetCare.toast("Producto / vacuna agregado a Stock y Vencimientos.", "success");
+            await cargarStock();
+        } catch (err) {
+            errBox.textContent = err.message;
+            errBox.classList.remove("d-none");
+        }
+    });
+
+    document.getElementById("formAjusteStock").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errBox = document.getElementById("aj-errores");
+        errBox.classList.add("d-none");
+        const id = document.getElementById("aj-id").value;
+        try {
+            await PetCare.apiFetch(`/api/productos/${id}/ajustar-stock/`, {
+                method: "POST",
+                body: {
+                    stock: parseInt(document.getElementById("aj-stock").value, 10),
+                    stock_minimo: parseInt(document.getElementById("aj-minimo").value, 10),
+                    lote: document.getElementById("aj-lote").value.trim(),
+                    fecha_vencimiento: document.getElementById("aj-vencimiento").value || "",
+                },
+            });
+            modalAjuste.hide();
+            PetCare.toast("Stock y lote actualizados.", "success");
+            await cargarStock();
+        } catch (err) {
+            errBox.textContent = err.message;
+            errBox.classList.remove("d-none");
+        }
+    });
+
+    document.getElementById("btn-confirmar-descarte").addEventListener("click", async () => {
+        const id = document.getElementById("desc-id").value;
+        if (!id) return;
+        try {
+            const r = await PetCare.apiFetch(`/api/productos/${id}/descartar-vencido/`, { method: "POST", body: {} });
+            modalDescartar.hide();
+            PetCare.toast(r.detail || "Lote descartado.", "success");
+            await cargarStock();
+        } catch (err) {
+            PetCare.toast(err.message || "Error al botar lote.", "error");
+        }
+    });
+
+    document.addEventListener("click", async (e) => {
+        const aj = e.target.closest(".js-ajustar");
+        if (aj) {
+            const p = inventario.todos.find((x) => Number(x.id) === Number(aj.dataset.id));
+            if (!p) return;
+            document.getElementById("aj-id").value = p.id;
+            document.getElementById("aj-nombre").textContent = p.nombre;
+            document.getElementById("aj-sku").textContent = `${p.sku} · Código ${p.codigo_barras}`;
+            document.getElementById("aj-stock").value = p.stock;
+            document.getElementById("aj-minimo").value = p.stock_minimo;
+            document.getElementById("aj-lote").value = p.lote || "";
+            document.getElementById("aj-vencimiento").value = p.fecha_vencimiento || "";
+            document.getElementById("aj-errores").classList.add("d-none");
+            modalAjuste.show();
+            return;
+        }
+
+        const dl = e.target.closest(".js-delta");
+        if (dl) {
+            try {
+                await PetCare.apiFetch(`/api/productos/${dl.dataset.id}/ajustar-stock/`, {
+                    method: "POST",
+                    body: { delta: parseInt(dl.dataset.delta, 10) },
+                });
+                PetCare.toast("Stock descontado (-1).", "success");
+                await cargarStock();
+            } catch (err) {
+                PetCare.toast(err.message || "Error al descontar.", "error");
+            }
+            return;
+        }
+
+        const desc = e.target.closest(".js-descartar");
+        if (desc) {
+            const p = inventario.todos.find((x) => Number(x.id) === Number(desc.dataset.id));
+            if (!p) return;
+            document.getElementById("desc-id").value = p.id;
+            document.getElementById("desc-nombre").textContent = p.nombre;
+            document.getElementById("desc-detalle").textContent = `Lote: ${p.lote || p.sku} · Stock: ${p.stock} · Vence: ${fmtCL(p.fecha_vencimiento)}`;
+            modalDescartar.show();
+        }
+    });
+
+    cargarStock();
+});
+</script>
+{% endblock %}

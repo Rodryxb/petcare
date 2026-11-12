@@ -65,6 +65,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "clinica.context_processors.sidebar_alertas",
             ],
         },
     },
@@ -194,6 +195,17 @@ STORAGES = {
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = Path(config("MEDIA_ROOT", default="") or BASE_DIR / "media")
+
+# ──────────────────────────────────────────────────────────────
+# Correo electrónico (por defecto consola en desarrollo; SMTP en .env)
+# ──────────────────────────────────────────────────────────────
+EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = config("EMAIL_HOST", default="")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="PetCare Clínica Veterinaria <no-reply@petcare.cl>")
 
 # ──────────────────────────────────────────────────────────────
 # Logging (stdout -> journald/systemd en EC2)

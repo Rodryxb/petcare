@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+
+{% block title %}Tienda PetShop y Catálogo | PetCare{% endblock %}
+{% block page_header %}Tienda PetShop y Catálogo de Prestaciones{% endblock %}
+{% block page_subtitle %}Alimentos Perro, Gato y Exóticos, Vacunas, Anestesia, Eutanasia, Antipulgas, Calmantes, Collares, Camas y Areneros{% endblock %}
+
+{% block content %}
+<!-- ═══════════════════════════════════════════════════════════
+     Barra Superior: Consultor de Precios + Buscador + Carrito Activo
+     ═══════════════════════════════════════════════════════════ -->
+<div class="pc-card p-3 p-md-4 mb-4" style="border-color: rgba(6, 182, 212, 0.4);">
+  <div class="row g-3 align-items-center">
+    <div class="col-12 col-lg-5">
+      <label class="form-label small text-info fw-bold mb-1">
+        <i class="bi bi-upc-scan me-1"></i>CONSULTOR DE PRECIOS Y LECTOR DE CÓDIGO DE BARRAS
+      </label>
+      <form onsubmit="consultarCodigoTienda(event)" class="input-group">
+        <span class="input-group-text bg-dark border-info text-info"><i class="bi bi-upc"></i></span>
+        <input
+          type="text"
+          id="tienda-barcode-input"
+          class="form-control font-monospace border-info"
+          placeholder="Escanee código EAN o consulte precio (ej: 7800004000019)..."
+          autocomplete="off"
+        />
+        <button class="btn btn-pc-cyan" type="submit">
+          <i class="bi bi-search me-1"></i>Consultar Precio
+        </button>
+      </form>
+    </div>
+
+    <div class="col-12 col-md-7 col-lg-4">
+      <label class="form-label small text-secondary fw-semibold mb-1">
+        <i class="bi bi-funnel me-1"></i>Buscar por nombre, descripción o especie
+      </label>
+      <div class="d-flex gap-2">
+        <input
+          type="search"
+          id="tienda-buscador"
+          class="form-control"
+          placeholder="Ej: Royal Canin, Churu, Heno, Seresto, Cama, Vacuna..."
+          oninput="renderVitrinaTienda()"
+        />
+        <select id="tienda-especie" class="form-select" style="max-width: 155px;" onchange="renderVitrinaTienda()">
+          <option value="">Especie: Todas</option>
+          <option value="CANINO">🐕 Perros</option>
+          <option value="FELINO">🐈 Gatos</option>
+          <option value="EXOTICO">🐰 Exóticos</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-5 col-lg-3 d-flex justify-content-lg-end">
+      <button type="button" class="btn btn-pc-emerald w-100 py-2 d-flex align-items-center justify-content-between px-3" onclick="abrirModalCarritoTienda()">
+        <span class="d-flex align-items-center gap-2">
+          <i class="bi bi-cart4 fs-5"></i>
+          <span class="fw-bold">Mi Carrito</span>
+          <span class="badge rounded-pill bg-dark text-white" id="tienda-badge-cantidad">0</span>
+        </span>
+        <span class="fw-bold font-monospace" id="tienda-badge-total">$0</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Categorías estilo Supermercado / PetShop -->
+  <div class="d-flex flex-wrap gap-2 mt-3 pt-3 border-top border-secondary-subtle" id="tienda-botones-categoria">
+    <button type="button" class="btn btn-sm btn-pc-cyan" data-cat="" onclick="seleccionarCategoriaTienda(this, '')">
+      <i class="bi bi-grid-fill me-1"></i>Todo el Catálogo
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cat="ALIMENTO_PERRO" onclick="seleccionarCategoriaTienda(this, 'ALIMENTO_PERRO')">
+      🐕 Comida Perro
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cat="ALIMENTO_GATO" onclick="seleccionarCategoriaTienda(this, 'ALIMENTO_GATO')">
+      🐈 Comida Gato
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cat="ALIMENTO_EXOTICO" onclick="seleccionarCategoriaTienda(this, 'ALIMENTO_EXOTICO')">
+      🐰 Comida Exóticos
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cat="VACUNA" onclick="seleccionarCategoriaTienda(this, 'VACUNA')">
+      💉 Vacunas
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cat="PABELLON" onclick="seleccionarCategoriaTienda(this, 'PABELLON')">
+      😴 Anestesia y Eutanasia
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cat="CONSULTA" onclick="seleccionarCategoriaTienda(this, 'CONSULTA')">
+      🩺 Consultas e Inyecciones
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cat="FARMACIA" onclick="seleccionarCategoriaTienda(this, 'FARMACIA')">
+      🛡️ Antipulgas y Calmantes
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-cat="ACCESORIOS" onclick="seleccionarCategoriaTienda(this, 'ACCESORIOS')">
+      🛏️ Collares, Camas y Areneros
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Grilla de Productos y Servicios con Foto, Descripción y Código de Barras
+     ═══════════════════════════════════════════════════════════ -->
+<div class="row g-4" id="tienda-grid-productos"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Modal 1: Consultor de Precio y Ficha de Producto con Código de Barras Real
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalConsultorTienda" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white">
+          <i class="bi bi-upc-scan text-info me-2"></i>Visor de Precio y Código de Barras
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="modal-consultor-cuerpo"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Modal 2: Carrito de Compras + Pago Directo con Tarjeta Crédito/Débito
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalCarritoTienda" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white">
+          <i class="bi bi-cart-check-fill text-success me-2"></i>Carrito de Compra PetCare (Tienda + Clínica)
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="tienda-carrito-lista" class="mb-3 overflow-y-auto" style="max-height: 300px;"></div>
+
+        <div class="p-3 rounded-3 d-flex justify-content-between align-items-center mb-3" style="background: #080c14; border: 1px solid var(--pc-border);">
+          <div>
+            <div class="small text-secondary">Total Carrito (IVA 19% incluido):</div>
+            <small class="text-info">Sincronizado automáticamente con Caja Clínica POS</small>
+          </div>
+          <div class="h2 fw-bold font-monospace mb-0" style="color: var(--pc-emerald);" id="tienda-carrito-total">$0</div>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-danger" onclick="vaciarCarritoTienda()">
+          <i class="bi bi-trash3 me-1"></i>Vaciar Carrito
+        </button>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Seguir Comprando</button>
+          <a href="{% url 'caja_pos' %}" class="btn btn-pc-emerald px-4">
+            <i class="bi bi-credit-card-2-front-fill me-1"></i>Ir a Pagar en Caja POS (Tarjeta / Efectivo)
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script>
+  const STORAGE_CART_KEY = "petcare_pos_cart_v1";
+  let catalogoTienda = [];
+  let carritoTienda = [];
+  let categoriaSeleccionada = "";
+  let modalConsultorInst = null;
+  let modalCarritoInst = null;
+
+  function formatoCLP(valor) {
+    return "$" + Number(valor || 0).toLocaleString("es-CL");
+  }
+
+  function sonarBeepTienda() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1750, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.11);
+    } catch (_) {}
+  }
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    modalConsultorInst = new bootstrap.Modal(document.getElementById("modalConsultorTienda"));
+    modalCarritoInst = new bootstrap.Modal(document.getElementById("modalCarritoTienda"));
+
+    cargarCarritoTienda();
+    try {
+      const data = await PetCare.apiFetch("/api/productos/?sin_paginar=1");
+      catalogoTienda = data.results || data;
+      renderVitrinaTienda();
+      actualizarBadgeCarritoTienda();
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  });
+
+  function cargarCarritoTienda() {
+    try {
+      const raw = localStorage.getItem(STORAGE_CART_KEY);
+      carritoTienda = raw ? JSON.parse(raw) : [];
+    } catch (_) {
+      carritoTienda = [];
+    }
+  }
+
+  function guardarCarritoTienda() {
+    localStorage.setItem(STORAGE_CART_KEY, JSON.stringify(carritoTienda));
+    actualizarBadgeCarritoTienda();
+  }
+
+  function actualizarBadgeCarritoTienda() {
+    const cant = carritoTienda.reduce((acc, i) => acc + i.cantidad, 0);
+    const total = carritoTienda.reduce((acc, i) => acc + i.precio * i.cantidad, 0);
+    document.getElementById("tienda-badge-cantidad").textContent = cant;
+    document.getElementById("tienda-badge-total").textContent = formatoCLP(total);
+  }
+
+  function seleccionarCategoriaTienda(btn, cat) {
+    categoriaSeleccionada = cat;
+    document.querySelectorAll("#tienda-botones-categoria button").forEach((b) => {
+      b.className = b === btn ? "btn btn-sm btn-pc-cyan" : "btn btn-sm btn-outline-secondary";
+    });
+    renderVitrinaTienda();
+  }
+
+  function renderVitrinaTienda() {
+    const q = (document.getElementById("tienda-buscador").value || "").trim().toLowerCase();
+    const esp = document.getElementById("tienda-especie").value;
+
+    const filtrados = catalogoTienda.filter((p) => {
+      if (categoriaSeleccionada && p.categoria !== categoriaSeleccionada) return false;
+      if (esp && p.especie_objetivo !== esp && p.especie_objetivo !== "TODOS") return false;
+      if (!q) return true;
+      return (
+        p.nombre.toLowerCase().includes(q) ||
+        p.codigo_barras.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.descripcion || "").toLowerCase().includes(q)
+      );
+    });
+
+    const grid = document.getElementById("tienda-grid-productos");
+    if (!filtrados.length) {
+      grid.innerHTML = `<div class="col-12 text-center py-5 text-secondary">No se encontraron productos para los filtros seleccionados.</div>`;
+      return;
+    }
+
+    grid.innerHTML = filtrados
+      .map(
+        (p) => `
+        <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+          <div class="pc-card h-100 d-flex flex-column justify-content-between overflow-hidden">
+            <div>
+              <div class="position-relative">
+                <img
+                  src="${p.imagen_url}"
+                  alt="${PetCare.escapeHtml(p.nombre)}"
+                  class="w-100"
+                  style="height: 185px; object-fit: cover; border-bottom: 1px solid var(--pc-border);"
+                />
+                <span class="badge bg-dark border border-info-subtle text-info position-absolute top-0 start-0 m-2">
+                  ${PetCare.escapeHtml(p.categoria_display)}
+                </span>
+                <span class="badge bg-dark border border-secondary-subtle text-light position-absolute top-0 end-0 m-2">
+                  ${PetCare.escapeHtml(p.especie_display)}
+                </span>
+              </div>
+
+              <div class="p-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="font-monospace small text-info"><i class="bi bi-upc me-1"></i>${PetCare.escapeHtml(p.codigo_barras)}</span>
+                  <span class="small ${p.controla_stock_fisico ? (Number(p.stock) <= 0 ? "text-danger fw-semibold" : "text-success") : "text-info"}">
+                    ${p.controla_stock_fisico ? (Number(p.stock) <= 0 ? "Agotado (0 u.)" : `Stock: ${p.stock} u.`) : "⚡ Servicio Clínico"}
+                  </span>
+                </div>
+                <h6 class="fw-bold text-white mb-2">${PetCare.escapeHtml(p.nombre)}</h6>
+                <p class="small text-secondary mb-0" style="font-size: 0.8rem;">
+                  ${PetCare.escapeHtml(p.descripcion)}
+                </p>
+              </div>
+            </div>
+
+            <div class="p-3 pt-0">
+              <div class="p-2 rounded-3 mb-2 d-flex justify-content-between align-items-center" style="background: #080c14; border: 1px solid var(--pc-border);">
+                <span class="small text-secondary">Precio:</span>
+                <span class="fs-4 fw-bold font-monospace" style="color: var(--pc-emerald);">${formatoCLP(p.precio)}</span>
+              </div>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-info" onclick="verConsultorProducto(${p.id})" title="Consultar código de barras">
+                  <i class="bi bi-upc-scan"></i> Código
+                </button>
+                <button type="button" class="btn btn-sm btn-pc-cyan flex-grow-1" onclick="agregarAlCarritoTienda(${p.id})" ${p.controla_stock_fisico && Number(p.stock) <= 0 ? "disabled" : ""}>
+                  <i class="bi ${p.controla_stock_fisico && Number(p.stock) <= 0 ? "bi-x-circle" : "bi-cart-plus-fill"} me-1"></i>${p.controla_stock_fisico && Number(p.stock) <= 0 ? "Agotado" : "Agregar al Carrito"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `
+      )
+      .join("");
+  }
+
+  function agregarAlCarritoTienda(prodId) {
+    const prod = catalogoTienda.find((p) => Number(p.id) === Number(prodId));
+    if (!prod) return;
+
+    cargarCarritoTienda();
+    const existente = carritoTienda.find((i) => Number(i.producto_id) === Number(prod.id));
+    const cantidadNueva = (existente ? existente.cantidad : 0) + 1;
+    if (prod.controla_stock_fisico && cantidadNueva > Number(prod.stock)) {
+      PetCare.toast(`Stock insuficiente para "${prod.nombre}" (disponible: ${prod.stock} u.).`, "warning");
+      return;
+    }
+    if (existente) {
+      existente.cantidad += 1;
+    } else {
+      carritoTienda.push({
+        producto_id: prod.id,
+        codigo_barras: prod.codigo_barras,
+        nombre: prod.nombre,
+        precio: prod.precio,
+        es_servicio: prod.es_servicio,
+        cantidad: 1,
+      });
+    }
+    sonarBeepTienda();
+    guardarCarritoTienda();
+    PetCare.toast(`"${prod.nombre}" (${formatoCLP(prod.precio)}) agregado al carrito.`, "success");
+  }
+
+  async function consultarCodigoTienda(e) {
+    e.preventDefault();
+    const input = document.getElementById("tienda-barcode-input");
+    const codigo = input.value.trim();
+    if (!codigo) return;
+    try {
+      const prod = await PetCare.apiFetch(`/api/productos/escanear/?codigo=${encodeURIComponent(codigo)}`);
+      sonarBeepTienda();
+      mostrarModalConsultor(prod);
+      input.value = "";
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+
+  function verConsultorProducto(prodId) {
+    const prod = catalogoTienda.find((p) => Number(p.id) === Number(prodId));
+    if (!prod) return;
+    mostrarModalConsultor(prod);
+  }
+
+  function mostrarModalConsultor(p) {
+    document.getElementById("modal-consultor-cuerpo").innerHTML = `
+      <div class="text-start">
+        <img src="${p.imagen_url}" alt="${PetCare.escapeHtml(p.nombre)}" class="w-100 rounded-3 mb-3" style="max-height: 200px; object-fit: cover;" />
+        <div class="d-flex justify-content-between mb-2">
+          <span class="badge bg-info text-dark">${PetCare.escapeHtml(p.categoria_display)}</span>
+          <span class="badge bg-dark border border-secondary-subtle">${PetCare.escapeHtml(p.especie_display)}</span>
+        </div>
+        <h5 class="fw-bold text-white">${PetCare.escapeHtml(p.nombre)}</h5>
+        <p class="small text-secondary">${PetCare.escapeHtml(p.descripcion)}</p>
+        <div class="p-3 rounded-3 bg-dark d-flex justify-content-between align-items-center mb-3">
+          <span class="text-secondary fw-semibold">PRECIO VERIFICADO:</span>
+          <span class="display-6 fw-bold font-monospace mb-0" style="color: var(--pc-emerald);">${formatoCLP(p.precio)}</span>
+        </div>
+        <div class="bg-white p-2 rounded text-center mb-3">
+          <svg id="svg-barcode-tienda"></svg>
+        </div>
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-pc-cyan" onclick="agregarAlCarritoTienda(${p.id}); modalConsultorInst.hide();">
+            <i class="bi bi-cart-plus-fill me-1"></i>Agregar al Carrito (${formatoCLP(p.precio)})
+          </button>
+        </div>
+      </div>
+    `;
+    modalConsultorInst.show();
+    setTimeout(() => {
+      try {
+        JsBarcode("#svg-barcode-tienda", p.codigo_barras, {
+          format: "CODE128",
+          lineColor: "#000000",
+          width: 2,
+          height: 50,
+          displayValue: true,
+        });
+      } catch (_) {}
+    }, 100);
+  }
+
+  function abrirModalCarritoTienda() {
+    cargarCarritoTienda();
+    renderModalCarritoTienda();
+    modalCarritoInst.show();
+  }
+
+  function cambiarCantidadTienda(prodId, delta) {
+    const idx = carritoTienda.findIndex((i) => Number(i.producto_id) === Number(prodId));
+    if (idx === -1) return;
+    if (delta > 0) {
+      const prod = catalogoTienda.find((p) => Number(p.id) === Number(prodId));
+      if (prod && prod.controla_stock_fisico && carritoTienda[idx].cantidad + delta > Number(prod.stock)) {
+        PetCare.toast(`No hay más stock disponible de "${prod.nombre}" (${prod.stock} u.).`, "warning");
+        return;
+      }
+    }
+    carritoTienda[idx].cantidad += delta;
+    if (carritoTienda[idx].cantidad <= 0) carritoTienda.splice(idx, 1);
+    guardarCarritoTienda();
+    renderModalCarritoTienda();
+  }
+
+  function vaciarCarritoTienda() {
+    carritoTienda = [];
+    guardarCarritoTienda();
+    renderModalCarritoTienda();
+  }
+
+  function renderModalCarritoTienda() {
+    const lista = document.getElementById("tienda-carrito-lista");
+    if (!carritoTienda.length) {
+      lista.innerHTML = `<div class="text-center py-4 text-secondary">Tu carrito está vacío. Explora la tienda y agrega alimentos, vacunas o accesorios.</div>`;
+    } else {
+      lista.innerHTML = carritoTienda
+        .map(
+          (i) => `
+          <div class="d-flex justify-content-between align-items-center p-2 mb-2 rounded-3" style="background: #0b0f19; border: 1px solid var(--pc-border);">
+            <div>
+              <div class="fw-bold text-white small">${PetCare.escapeHtml(i.nombre)}</div>
+              <small class="text-secondary font-monospace">${PetCare.escapeHtml(i.codigo_barras)} · ${formatoCLP(i.precio)} c/u</small>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-secondary" onclick="cambiarCantidadTienda(${i.producto_id}, -1)">-</button>
+                <span class="btn btn-dark disabled text-white font-monospace">${i.cantidad}</span>
+                <button type="button" class="btn btn-outline-secondary" onclick="cambiarCantidadTienda(${i.producto_id}, 1)">+</button>
+              </div>
+              <span class="fw-bold text-info font-monospace" style="min-width: 85px; text-align: right;">${formatoCLP(i.precio * i.cantidad)}</span>
+            </div>
+          </div>
+        `
+        )
+        .join("");
+    }
+    const total = carritoTienda.reduce((acc, i) => acc + i.precio * i.cantidad, 0);
+    document.getElementById("tienda-carrito-total").textContent = formatoCLP(total);
+  }
+</script>
+{% endblock %}

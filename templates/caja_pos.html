@@ -1,0 +1,1376 @@
+{% extends "base.html" %}
+
+{% block title %}Caja Clínica y POS | PetCare{% endblock %}
+{% block page_header %}Caja Clínica y Terminal POS (Modo Supermercado){% endblock %}
+{% block page_subtitle %}Cobro de consultas ($20.000), vacunas ($15.000), inyecciones ($5.000), procedimientos y Tienda con lector de código de barras{% endblock %}
+
+{% block content %}
+<style>
+  .pos-catalog-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(226px, 1fr));
+    gap: 0.95rem;
+  }
+
+  .pos-quick-section {
+    background: linear-gradient(180deg, rgba(6, 182, 212, 0.09) 0%, rgba(14, 116, 144, 0.03) 100%);
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    border-radius: 14px;
+    padding: 0.95rem;
+    margin-bottom: 1.15rem;
+  }
+
+  .pos-product-card {
+    background: #0d1424;
+    border: 1px solid var(--pc-border);
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 292px;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .pos-product-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(6, 182, 212, 0.55);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.38);
+  }
+
+  .pos-product-card--quick {
+    background: linear-gradient(165deg, rgba(8, 145, 178, 0.24) 0%, rgba(15, 23, 42, 0.97) 68%);
+    border: 1.5px solid rgba(34, 211, 238, 0.65);
+    box-shadow: 0 4px 16px rgba(6, 182, 212, 0.14);
+  }
+
+  .pos-product-card--quick:hover {
+    border-color: #22d3ee;
+    box-shadow: 0 10px 24px rgba(34, 211, 238, 0.24);
+  }
+
+  .pos-product-thumb {
+    position: relative;
+    width: 100%;
+    height: 132px;
+    background: #070b14;
+    overflow: hidden;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  }
+
+  .pos-product-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.2s ease;
+  }
+
+  .pos-product-card:hover .pos-product-thumb img {
+    transform: scale(1.04);
+  }
+
+  .pos-product-badge-top {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    font-size: 0.65rem;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(6px);
+  }
+
+  .pos-quick-pill {
+    background: linear-gradient(90deg, #22d3ee, #0ea5e9);
+    color: #05131f;
+    font-weight: 800;
+  }
+
+  .pos-product-stock-pill {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    font-size: 0.65rem;
+    background: rgba(7, 11, 20, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+  }
+
+  .pos-product-title {
+    font-weight: 700;
+    color: #f8fafc;
+    font-size: 0.86rem;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.15rem;
+  }
+
+  .pos-product-desc {
+    color: #94a3b8;
+    font-size: 0.73rem;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 1.9rem;
+  }
+
+  .pos-coleccion-pill.active-quick {
+    background: rgba(34, 211, 238, 0.2);
+    border-color: #22d3ee;
+    color: #67e8f9;
+    font-weight: 700;
+  }
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PARTE SUPERIOR: Lector Compacto (Izq) + Cinta de Caja / Carrito (Der)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="row g-3 mb-4 align-items-stretch">
+  <!-- IZQUIERDA: Lector de Código de Barras Compacto -->
+  <div class="col-12 col-lg-5">
+    <div class="pc-card p-3 h-100 d-flex flex-column justify-content-between" style="border-color: rgba(6, 182, 212, 0.45);">
+      <div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+          <label for="pos-barcode-input" class="form-label text-info fw-bold mb-0" style="font-size: 0.75rem; line-height: 1.25;">
+            <i class="bi bi-upc-scan me-1"></i>LECTOR DE CÓDIGO DE BARRAS ACTIVO (PISTOLA USB / TECLADO / CÁMARA)
+          </label>
+          <div class="d-flex gap-1">
+            <button type="button" class="btn btn-sm btn-outline-info py-1 px-2" onclick="abrirModalCamaraBarcode()" title="Escanear con cámara">
+              <i class="bi bi-camera-video-fill me-1"></i>Cámara
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-warning py-1 px-2" onclick="abrirModalConsultorPrecios()" title="Consultor de precios">
+              <i class="bi bi-search-heart me-1"></i>Precios
+            </button>
+          </div>
+        </div>
+
+        <form onsubmit="procesarEscaneoInput(event)" class="input-group input-group-sm mb-3">
+          <span class="input-group-text bg-dark border-info text-info">
+            <i class="bi bi-upc"></i>
+          </span>
+          <input
+            type="text"
+            id="pos-barcode-input"
+            class="form-control font-monospace border-info"
+            placeholder="Pistolee o digite código (ej: 7800001000012 o SRV-CONS-001)..."
+            autocomplete="off"
+            autofocus
+          />
+          <button class="btn btn-pc-cyan px-3 fw-semibold" type="submit">
+            <i class="bi bi-plus-circle-fill me-1"></i>Pistolear
+          </button>
+        </form>
+
+        <!-- Teclas directas compactas -->
+        <div class="p-2 rounded-3" style="background: rgba(8, 12, 22, 0.75); border: 1px solid var(--pc-border);">
+          <div class="small text-secondary fw-semibold mb-2">
+            <i class="bi bi-lightning-charge-fill text-warning me-1"></i>Teclas de Cobro Directo:
+          </div>
+          <div class="d-flex flex-wrap gap-1">
+            <button type="button" class="btn btn-sm btn-outline-info py-1 px-2" onclick="escanearCodigoDirecto('7800001000012')">
+              🩺 Consulta <strong>$20.000</strong>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-info py-1 px-2" onclick="escanearCodigoDirecto('7800001000043')">
+              🩹 Inyección <strong>$5.000</strong>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success py-1 px-2" onclick="escanearCodigoDirecto('7800002000011')">
+              💉 Óctuple <strong>$15.000</strong>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success py-1 px-2" onclick="escanearCodigoDirecto('7800002000028')">
+              💉 Antirrábica <strong>$15.000</strong>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success py-1 px-2" onclick="escanearCodigoDirecto('7800002000035')">
+              💉 Triple Felina <strong>$15.000</strong>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-light py-1 px-2" onclick="escanearCodigoDirecto('7800003000010')">
+              😴 Anestesia <strong>$35.000</strong>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="escanearCodigoDirecto('7800003000034')">
+              🕊️ Eutanasia <strong>$45.000</strong>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center pt-2 mt-3 border-top border-secondary-subtle small text-secondary">
+        <span><i class="bi bi-check2-circle text-success me-1"></i>Pistola USB y teclado listos (Enter)</span>
+        <a href="{% url 'tienda' %}" class="text-info text-decoration-none fw-semibold">
+          <i class="bi bi-shop me-1"></i>Vitrina Tienda
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- DERECHA: Cinta de Caja / Carrito en la Parte Superior -->
+  <div class="col-12 col-lg-7">
+    <div class="pc-card p-3 h-100 d-flex flex-column justify-content-between" style="border-color: rgba(16, 185, 129, 0.45);">
+      <div>
+        <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom border-secondary-subtle">
+          <div class="d-flex align-items-center gap-2">
+            <h5 class="mb-0 fw-bold text-white fs-6">
+              <i class="bi bi-receipt-cutoff text-info me-2"></i>Cinta de Caja / Carrito
+            </h5>
+            <span class="badge bg-dark border border-secondary-subtle text-secondary font-monospace">POS #01 · SII</span>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2" onclick="vaciarCarritoPos()" title="Limpiar carrito">
+            <i class="bi bi-trash3 me-1"></i>Vaciar
+          </button>
+        </div>
+
+        <!-- Selección de Tutor y Mascota para asociar a la boleta -->
+        <div class="row g-2 mb-2">
+          <div class="col-md-6">
+            <select id="pos-tutor" class="form-select form-select-sm" onchange="filtrarMascotasPos()" aria-label="Cliente / Tutor">
+              <option value="">Cliente: Venta Directa (Mesón)</option>
+              {% for t in tutores %}
+              <option value="{{ t.id }}">{{ t.nombre_completo }} [{{ t.rut }}]</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <select id="pos-mascota" class="form-select form-select-sm" onchange="sincronizarTutorPos()" aria-label="Paciente (Mascota)">
+              <option value="">Mascota: Sin paciente específico</option>
+              {% for m in mascotas %}
+              <option value="{{ m.id }}" data-tutor-id="{{ m.tutor_id }}">{{ m.nombre }} ({{ m.get_especie_display }}) — {{ m.tutor.nombre_completo }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Lista de ítems escaneados -->
+        <div id="pos-lista-carrito" class="overflow-y-auto mb-2 pe-1" style="max-height: 175px; min-height: 108px;"></div>
+      </div>
+
+      <!-- Desglose Tributario + Botones de Pago -->
+      <div class="pt-2 border-top border-secondary-subtle">
+        <div class="row g-2 align-items-center mb-2 p-2 rounded-3" style="background: #080c14; border: 1px solid var(--pc-border);">
+          <div class="col-12 col-md-7">
+            <div class="d-flex flex-wrap gap-3 small text-secondary">
+              <span>Neto: <strong class="font-monospace text-light" id="pos-resumen-neto">$0</strong></span>
+              <span>IVA 19%: <strong class="font-monospace text-light" id="pos-resumen-iva">$0</strong></span>
+            </div>
+            <div class="d-flex align-items-center gap-2 small text-secondary mt-1">
+              <span>Descuento (CLP):</span>
+              <input
+                type="number"
+                id="pos-descuento"
+                class="form-control form-control-sm text-end font-monospace py-0"
+                style="width: 105px; height: 26px;"
+                min="0"
+                step="500"
+                value="0"
+                oninput="renderCarritoPos()"
+              />
+            </div>
+          </div>
+          <div class="col-12 col-md-5 text-md-end">
+            <div class="small text-secondary fw-semibold">TOTAL A PAGAR</div>
+            <div class="fw-bold fs-3 font-monospace lh-1" style="color: var(--pc-emerald);" id="pos-resumen-total">$0</div>
+          </div>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-12 col-md-6 d-grid">
+            <button type="button" class="btn btn-pc-emerald fw-bold" onclick="abrirTerminalPago('TARJETA_DEBITO')">
+              <i class="bi bi-credit-card-2-front-fill me-2"></i>Pagar con Tarjeta Crédito / Débito
+            </button>
+          </div>
+          <div class="col-6 col-md-3 d-grid">
+            <button type="button" class="btn btn-outline-info btn-sm" onclick="abrirTerminalPago('EFECTIVO')">
+              <i class="bi bi-cash-coin me-1"></i>Efectivo
+            </button>
+          </div>
+          <div class="col-6 col-md-3 d-grid">
+            <button type="button" class="btn btn-outline-light btn-sm" onclick="abrirTerminalPago('TRANSFERENCIA')">
+              <i class="bi bi-bank me-1"></i>Transferencia
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PARTE INFERIOR: Catálogo Ordenado por Colección + Tarjetas Cuadradas
+     ═══════════════════════════════════════════════════════════ -->
+<div class="pc-card p-3 p-md-4">
+  <!-- Bloque de Búsqueda por Texto y Colección -->
+  <div class="p-3 rounded-3 mb-3" style="background: rgba(8, 12, 22, 0.72); border: 1px solid var(--pc-border);">
+    <div class="row g-2 align-items-center mb-2">
+      <div class="col-12 col-md-5">
+        <div class="d-flex align-items-center gap-2">
+          <h5 class="mb-0 fw-bold text-white fs-6">
+            <i class="bi bi-grid-3x3-gap-fill text-info me-2"></i>Catálogo de Productos y Prestaciones
+          </h5>
+          <span class="badge bg-dark border border-info-subtle text-info font-monospace" id="pos-catalogo-count">0 ítems</span>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-dark border-secondary-subtle text-info"><i class="bi bi-search"></i></span>
+          <input
+            type="search"
+            id="pos-buscador-catalogo"
+            class="form-control"
+            placeholder="Buscar producto, vacuna, código EAN..."
+            oninput="filtrarCatalogoPos()"
+          />
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <select id="pos-filtro-categoria" class="form-select form-select-sm" onchange="filtrarCatalogoPos()" aria-label="Buscar por colección">
+          <option value="">Todas las Colecciones</option>
+          {% for cod, nombre in categorias_pos %}
+          <option value="{{ cod }}">{{ nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- Píldoras de Colección -->
+    <div class="d-flex flex-wrap gap-1 pt-2 border-top border-secondary-subtle" id="pos-colecciones-pills">
+      <button type="button" class="btn btn-sm btn-pc-cyan py-1 px-2 pos-coleccion-pill" data-cat="" onclick="setCategoriaPos('')">Todas</button>
+      <button type="button" class="btn btn-sm btn-outline-info py-1 px-2 pos-coleccion-pill" data-cat="CONSULTA" onclick="setCategoriaPos('CONSULTA')">⚡ Consultas e Inyecciones</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 pos-coleccion-pill" data-cat="VACUNA" onclick="setCategoriaPos('VACUNA')">💉 Vacunas</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 pos-coleccion-pill" data-cat="PABELLON" onclick="setCategoriaPos('PABELLON')">🏥 Anestesia y Pabellón</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 pos-coleccion-pill" data-cat="ALIMENTO_PERRO" onclick="setCategoriaPos('ALIMENTO_PERRO')">🐕 Comida Perro</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 pos-coleccion-pill" data-cat="ALIMENTO_GATO" onclick="setCategoriaPos('ALIMENTO_GATO')">🐈 Comida Gato</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 pos-coleccion-pill" data-cat="ALIMENTO_EXOTICO" onclick="setCategoriaPos('ALIMENTO_EXOTICO')">🐰 Exóticos</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 pos-coleccion-pill" data-cat="FARMACIA" onclick="setCategoriaPos('FARMACIA')">🛡️ Antipulgas y Farmacia</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2 pos-coleccion-pill" data-cat="ACCESORIOS" onclick="setCategoriaPos('ACCESORIOS')">🛏️ Collares, Camas y Areneros</button>
+    </div>
+  </div>
+
+  <!-- Contenedor Dinámico: Acceso Rápido (Consultas e Inyecciones) + Resto de Productos -->
+  <div id="pos-grid-productos"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Historial de Últimas Boletas Emitidas
+     ═══════════════════════════════════════════════════════════ -->
+<div class="pc-card mt-4">
+  <div class="pc-card-header">
+    <div>
+      <h5 class="mb-0 fw-bold text-white"><i class="bi bi-journal-check text-info me-2"></i>Historial de Boletas y Pagos Recientes</h5>
+      <small class="text-secondary">Registro auditable de cobros por tarjeta de crédito, débito, efectivo y transferencia</small>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table pc-table">
+      <thead>
+        <tr>
+          <th>N° Boleta</th>
+          <th>Fecha / Hora</th>
+          <th>Tutor / Paciente</th>
+          <th>Método de Pago</th>
+          <th>Cód. Autorización</th>
+          <th class="text-end">Total CLP</th>
+          <th class="text-end">Comprobante</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-historial-boletas">
+        {% for b in ultimas_boletas %}
+        <tr>
+          <td class="font-monospace fw-bold text-info">{{ b.numero_boleta }}</td>
+          <td class="small text-secondary">{{ b.creado_en|date:"d/m/Y H:i" }}</td>
+          <td>
+            <div class="text-white fw-semibold">{{ b.tutor.nombre_completo|default:"Cliente Presencial" }}</div>
+            {% if b.mascota %}
+            <small class="text-info">🐾 {{ b.mascota.nombre }} ({{ b.mascota.get_especie_display }})</small>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge text-bg-dark border border-info-subtle">{{ b.get_metodo_pago_display }}</span>
+            {% if b.ultimos_4_digitos %}
+            <small class="text-secondary font-monospace ms-1">{{ b.marca_tarjeta }} •••• {{ b.ultimos_4_digitos }} ({{ b.cuotas }}c)</small>
+            {% endif %}
+          </td>
+          <td class="font-monospace small text-success">{{ b.codigo_autorizacion }}</td>
+          <td class="text-end fw-bold text-white font-monospace">${{ b.total }}</td>
+          <td class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-info" onclick="verBoletaPorId({{ b.id }})">
+              <i class="bi bi-printer me-1"></i>Ver Boleta
+            </button>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center py-4 text-secondary">Aún no se han emitido boletas en esta sesión.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Modal 1: Terminal de Pago con Tarjeta de Crédito / Débito (Transbank POS)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalTerminalPago" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <form class="modal-content" id="form-terminal-pago" onsubmit="confirmarPagoPos(event)">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white">
+          <i class="bi bi-credit-card-2-front text-info me-2"></i>Terminal de Pago Clínico (Redcompra / Webpay POS)
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="pago-alerta" class="alert alert-danger d-none small py-2"></div>
+
+        <!-- Selector de Medio de Pago -->
+        <div class="btn-group w-100 mb-4" role="group">
+          <input type="radio" class="btn-check" name="metodo_pago_radio" id="mp-debito" value="TARJETA_DEBITO" checked onchange="cambiarMetodoPagoModal('TARJETA_DEBITO')" />
+          <label class="btn btn-outline-info" for="mp-debito"><i class="bi bi-credit-card me-1"></i>Tarjeta Débito</label>
+
+          <input type="radio" class="btn-check" name="metodo_pago_radio" id="mp-credito" value="TARJETA_CREDITO" onchange="cambiarMetodoPagoModal('TARJETA_CREDITO')" />
+          <label class="btn btn-outline-info" for="mp-credito"><i class="bi bi-credit-card-2-back me-1"></i>Tarjeta Crédito</label>
+
+          <input type="radio" class="btn-check" name="metodo_pago_radio" id="mp-efectivo" value="EFECTIVO" onchange="cambiarMetodoPagoModal('EFECTIVO')" />
+          <label class="btn btn-outline-info" for="mp-efectivo"><i class="bi bi-cash-stack me-1"></i>Efectivo</label>
+
+          <input type="radio" class="btn-check" name="metodo_pago_radio" id="mp-transferencia" value="TRANSFERENCIA" onchange="cambiarMetodoPagoModal('TRANSFERENCIA')" />
+          <label class="btn btn-outline-info" for="mp-transferencia"><i class="bi bi-bank me-1"></i>Transferencia</label>
+        </div>
+
+        <!-- Panel de Tarjeta de Crédito / Débito -->
+        <div id="panel-pago-tarjeta" class="row g-3 align-items-center">
+          <div class="col-md-6">
+            <!-- Tarjeta 3D Interactiva -->
+            <div class="p-4 rounded-4 text-white position-relative overflow-hidden shadow" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0e7490 100%); border: 1px solid rgba(6, 182, 212, 0.5); min-height: 205px;">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="badge bg-info text-dark fw-bold" id="card-preview-tipo">REDCOMPRA DÉBITO</span>
+                <span class="fw-bold fs-5 font-monospace text-info" id="card-preview-marca">VISA</span>
+              </div>
+              <div class="my-2 d-flex align-items-center gap-2">
+                <i class="bi bi-sim-fill fs-2 text-warning"></i>
+                <i class="bi bi-wifi fs-4 text-info" style="transform: rotate(90deg);"></i>
+              </div>
+              <div class="fs-5 font-monospace fw-bold letter-spacing-1 my-2" id="card-preview-numero">4532 •••• •••• 8841</div>
+              <div class="d-flex justify-content-between small text-secondary mt-3">
+                <div>
+                  <div style="font-size: 0.65rem;">TITULAR</div>
+                  <div class="text-white fw-semibold" id="card-preview-titular">CLIENTE PETCARE</div>
+                </div>
+                <div class="text-end">
+                  <div style="font-size: 0.65rem;">VENCE</div>
+                  <div class="text-white font-monospace" id="card-preview-exp">08/29</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="d-grid mt-2">
+              <button type="button" class="btn btn-sm btn-outline-emerald border-success text-success" onclick="simularLecturaContactless()">
+                <i class="bi bi-wifi me-1"></i>Simular Acercar Tarjeta Contactless (NFC / Chip)
+              </button>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label small text-secondary mb-1">Número de Tarjeta *</label>
+                <input
+                  type="text"
+                  id="card-input-numero"
+                  class="form-control font-monospace"
+                  maxlength="19"
+                  value="4532 8910 3412 8841"
+                  placeholder="4532 •••• •••• ••••"
+                  oninput="actualizarPreviewTarjeta()"
+                />
+              </div>
+              <div class="col-12">
+                <label class="form-label small text-secondary mb-1">Nombre del Titular *</label>
+                <input
+                  type="text"
+                  id="card-input-titular"
+                  class="form-control"
+                  value="CLIENTE TITULAR"
+                  oninput="actualizarPreviewTarjeta()"
+                />
+              </div>
+              <div class="col-4">
+                <label class="form-label small text-secondary mb-1">Expiración *</label>
+                <input
+                  type="text"
+                  id="card-input-exp"
+                  class="form-control font-monospace"
+                  maxlength="5"
+                  value="08/29"
+                  placeholder="MM/AA"
+                  oninput="actualizarPreviewTarjeta()"
+                />
+              </div>
+              <div class="col-4">
+                <label class="form-label small text-secondary mb-1">CVV / PIN *</label>
+                <input type="password" id="card-input-cvv" class="form-control font-monospace" maxlength="4" value="842" />
+              </div>
+              <div class="col-4" id="bloque-cuotas-credito">
+                <label class="form-label small text-secondary mb-1">Cuotas</label>
+                <select id="card-input-cuotas" class="form-select" onchange="actualizarPreviewTarjeta()">
+                  <option value="1">1 cuota (S/I)</option>
+                  <option value="3">3 cuotas S/I</option>
+                  <option value="6">6 cuotas</option>
+                  <option value="12">12 cuotas</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel de Pago en Efectivo (Cálculo de Vuelto) -->
+        <div id="panel-pago-efectivo" class="row g-3 d-none">
+          <div class="col-md-6">
+            <label class="form-label small text-secondary">Monto Recibido en Efectivo (CLP) *</label>
+            <input type="number" id="efectivo-recibido" class="form-control form-control-lg font-monospace" min="0" step="1000" oninput="calcularVueltoEfectivo()" />
+            <div class="d-flex flex-wrap gap-1 mt-2">
+              <button type="button" class="btn btn-xs btn-outline-secondary btn-sm" onclick="setBilletes(10000)">$10.000</button>
+              <button type="button" class="btn btn-xs btn-outline-secondary btn-sm" onclick="setBilletes(20000)">$20.000</button>
+              <button type="button" class="btn btn-xs btn-outline-secondary btn-sm" onclick="setBilletes(50000)">$50.000</button>
+              <button type="button" class="btn btn-xs btn-outline-secondary btn-sm" onclick="setBilletes(100000)">$100.000</button>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-3 rounded-3 h-100 d-flex flex-column justify-content-center text-center" style="background: #080c14; border: 1px solid var(--pc-border);">
+              <div class="small text-secondary">VUELTO A ENTREGAR AL CLIENTE</div>
+              <div class="h2 fw-bold text-warning font-monospace mb-0 mt-1" id="efectivo-vuelto">$0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3 p-3 rounded-3 d-flex justify-content-between align-items-center" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.35);">
+          <div>
+            <div class="small text-secondary">Total a procesar en terminal:</div>
+            <div class="small text-info" id="terminal-detalle-cuotas">Cargo inmediato débito Redcompra</div>
+          </div>
+          <div class="h3 fw-bold text-white font-monospace mb-0" id="terminal-monto-total">$0</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-pc-emerald px-4" id="btn-autorizar-pago">
+          <i class="bi bi-shield-check me-1"></i>Autorizar Pago y Emitir Boleta
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Modal 2: Consultor de Precios por Código de Barras (Tipo Supermercado)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalConsultorPrecios" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white">
+          <i class="bi bi-upc-scan text-warning me-2"></i>Consultor de Precios PetCare
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form onsubmit="consultarPrecioPorCodigo(event)" class="input-group mb-3">
+          <input type="text" id="consultor-input" class="form-control font-monospace" placeholder="Escanee código de barras o escriba nombre (ej: 7800001000012, vacuna, royal)..." />
+          <button class="btn btn-pc-cyan" type="submit"><i class="bi bi-search me-1"></i>Consultar</button>
+        </form>
+        <div id="consultor-resultado" class="text-center py-3 text-secondary">
+          <i class="bi bi-upc-scan display-4 text-info d-block mb-2"></i>
+          Pase el código de barras por el lector para consultar precio y disponibilidad.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Modal 3: Lector de Código de Barras por Cámara Web / Simulador
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalCamaraBarcode" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white">
+          <i class="bi bi-camera-video text-info me-2"></i>Escáner Óptico de Código de Barras
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="detenerCamaraBarcode()"></button>
+      </div>
+      <div class="modal-body text-center">
+        <div id="lector-camara-box" class="rounded-3 overflow-hidden mx-auto mb-3 bg-black" style="max-width: 400px; min-height: 220px; border: 2px dashed var(--pc-cyan); display: flex; align-items: center; justify-content: center;">
+          <div class="p-3 text-secondary small">Iniciando cámara o seleccione una etiqueta de prueba abajo...</div>
+        </div>
+        <div class="small text-secondary mb-2">¿Sin cámara física conectada? Simule el pistoleo láser de cualquier etiqueta:</div>
+        <div class="d-flex flex-wrap justify-content-center gap-2">
+          <button type="button" class="btn btn-sm btn-outline-info" onclick="simularEscaneoDesdeCamara('7800001000012')">
+            <i class="bi bi-upc me-1"></i>7800001000012 (Consulta $20.000)
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-success" onclick="simularEscaneoDesdeCamara('7800002000011')">
+            <i class="bi bi-upc me-1"></i>7800002000011 (Vacuna $15.000)
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-warning" onclick="simularEscaneoDesdeCamara('7800001000043')">
+            <i class="bi bi-upc me-1"></i>7800001000043 (Inyección $5.000)
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-light" onclick="simularEscaneoDesdeCamara('7800004000019')">
+            <i class="bi bi-upc me-1"></i>7800004000019 (Royal Canin $58.900)
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-light" onclick="simularEscaneoDesdeCamara('7800008000015')">
+            <i class="bi bi-upc me-1"></i>7800008000015 (Collar Seresto $39.900)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Modal 4: Boleta Electrónica Emitida (Con Código de Barras Imprimible)
+     ═══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalBoletaEmitida" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white">
+          <i class="bi bi-check-circle-fill text-success me-2"></i>Comprobante / Boleta Electrónica
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="boleta-imprimible-area"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-pc-cyan" onclick="window.print()">
+          <i class="bi bi-printer-fill me-1"></i>Imprimir Boleta
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+  const STORAGE_CART_KEY = "petcare_pos_cart_v1";
+  let catalogoProductos = [];
+  let carritoPos = [];
+  let metodoPagoActual = "TARJETA_DEBITO";
+  let modalTerminalInst = null;
+  let modalConsultorInst = null;
+  let modalCamaraInst = null;
+  let modalBoletaInst = null;
+  let html5QrScanner = null;
+
+  function formatoCLP(valor) {
+    return "$" + Number(valor || 0).toLocaleString("es-CL");
+  }
+
+  /**
+   * Sintetizador de sonido "BEEP!" de lector láser de supermercado (Web Audio API)
+   */
+  function sonarBeepScanner(exito = true) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = exito ? "sine" : "sawtooth";
+      osc.frequency.setValueAtTime(exito ? 1850 : 280, ctx.currentTime);
+      gain.gain.setValueAtTime(0.14, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (exito ? 0.11 : 0.28));
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + (exito ? 0.12 : 0.3));
+    } catch (_) {}
+  }
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    modalTerminalInst = new bootstrap.Modal(document.getElementById("modalTerminalPago"));
+    modalConsultorInst = new bootstrap.Modal(document.getElementById("modalConsultorPrecios"));
+    modalCamaraInst = new bootstrap.Modal(document.getElementById("modalCamaraBarcode"));
+    modalBoletaInst = new bootstrap.Modal(document.getElementById("modalBoletaEmitida"));
+
+    cargarCarritoDesdeStorage();
+    await cargarCatalogoPos();
+
+    // Si viene desde Calendario o Recepción con ?mascota_id=X, seleccionar paciente y pre-cargar Consulta General
+    const params = new URLSearchParams(window.location.search);
+    const mascotaId = params.get("mascota_id");
+    const codigoParam = params.get("codigo");
+    if (mascotaId) {
+      const selectMascota = document.getElementById("pos-mascota");
+      selectMascota.value = String(mascotaId);
+      sincronizarTutorPos();
+      if (carritoPos.length === 0) {
+        const consulta = catalogoProductos.find((p) => p.codigo_barras === "7800001000012");
+        if (consulta) agregarAlCarritoPos(consulta.id, 1, false);
+      }
+    }
+    if (codigoParam) {
+      await escanearCodigoDirecto(codigoParam);
+    }
+  });
+
+  function cargarCarritoDesdeStorage() {
+    try {
+      const guardado = localStorage.getItem(STORAGE_CART_KEY);
+      carritoPos = guardado ? JSON.parse(guardado) : [];
+    } catch (_) {
+      carritoPos = [];
+    }
+  }
+
+  function guardarCarritoEnStorage() {
+    localStorage.setItem(STORAGE_CART_KEY, JSON.stringify(carritoPos));
+  }
+
+  async function cargarCatalogoPos() {
+    try {
+      const data = await PetCare.apiFetch("/api/productos/?sin_paginar=1");
+      catalogoProductos = data.results || data;
+      filtrarCatalogoPos();
+      renderCarritoPos();
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+
+  const ORDEN_CATEGORIAS_POS = {
+    CONSULTA: 0,
+    VACUNA: 1,
+    PABELLON: 2,
+    ALIMENTO_PERRO: 3,
+    ALIMENTO_GATO: 4,
+    ALIMENTO_EXOTICO: 5,
+    FARMACIA: 6,
+    ACCESORIOS: 7,
+  };
+
+  function setCategoriaPos(cat) {
+    document.getElementById("pos-filtro-categoria").value = cat;
+    filtrarCatalogoPos();
+  }
+
+  function actualizarPillsColeccion(catActiva) {
+    document.querySelectorAll("#pos-colecciones-pills .pos-coleccion-pill").forEach((btn) => {
+      const catBtn = btn.dataset.cat ?? "";
+      const esActiva = catBtn === catActiva;
+      btn.classList.remove("btn-pc-cyan", "btn-outline-secondary", "btn-outline-info", "active-quick");
+      if (esActiva) {
+        if (catBtn === "CONSULTA") {
+          btn.classList.add("btn-pc-cyan", "active-quick");
+        } else {
+          btn.classList.add("btn-pc-cyan");
+        }
+      } else {
+        btn.classList.add(catBtn === "CONSULTA" ? "btn-outline-info" : "btn-outline-secondary");
+      }
+    });
+  }
+
+  function renderTarjetaProductoPos(p, esRapido = false) {
+    const sinStock = Boolean(p.controla_stock_fisico && Number(p.stock) <= 0);
+    const stockBadge = p.controla_stock_fisico
+      ? (sinStock
+          ? `<span class="badge rounded-pill pos-product-stock-pill border-danger text-danger">Agotado (0 u.)</span>`
+          : `<span class="badge rounded-pill pos-product-stock-pill">Stock: ${p.stock} u.</span>`)
+      : `<span class="badge rounded-pill pos-product-stock-pill"><i class="bi bi-lightning-fill text-info me-1"></i>Clínica</span>`;
+
+    const badgeSuperior = esRapido
+      ? `<span class="badge rounded-pill pos-product-badge-top pos-quick-pill"><i class="bi bi-lightning-charge-fill me-1"></i>Acceso Rápido</span>`
+      : `<span class="badge rounded-pill pos-product-badge-top bg-dark bg-opacity-75 border border-info-subtle text-info">${PetCare.escapeHtml(p.categoria_display)}</span>`;
+
+    const precioColor = esRapido ? "#38bdf8" : "var(--pc-emerald)";
+    const btnClass = esRapido ? "btn-info text-dark fw-bold" : "btn-pc-cyan";
+
+    return `
+      <div class="pos-product-card ${esRapido ? "pos-product-card--quick" : ""}">
+        <div class="pos-product-thumb" onclick="agregarAlCarritoPos(${p.id}, 1, true)" title="Clic para agregar a Cinta de Caja">
+          <img src="${p.imagen_url}" alt="${PetCare.escapeHtml(p.nombre)}" loading="lazy" />
+          ${badgeSuperior}
+          ${stockBadge}
+        </div>
+        <div class="p-3 d-flex flex-column flex-grow-1">
+          <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+            <span class="font-monospace text-secondary text-truncate" style="font-size: 0.68rem;">${PetCare.escapeHtml(p.codigo_barras)}</span>
+            ${esRapido ? `<span class="text-info fw-semibold text-nowrap" style="font-size: 0.66rem;">Consulta / Inyección</span>` : ""}
+          </div>
+          <div class="pos-product-title mb-1">${PetCare.escapeHtml(p.nombre)}</div>
+          <p class="pos-product-desc mb-2">${PetCare.escapeHtml(p.descripcion)}</p>
+
+          <div class="pt-2 mt-auto border-top border-secondary-subtle d-flex justify-content-between align-items-center gap-2">
+            <div class="fw-bold fs-5 font-monospace lh-1 text-nowrap" style="color: ${precioColor};">${formatoCLP(p.precio)}</div>
+            <div class="btn-group btn-group-sm flex-shrink-0">
+              <button type="button" class="btn btn-outline-info px-2" onclick="mostrarDetalleEnConsultor(${p.id})" title="Ver código de barras y detalle">
+                <i class="bi bi-upc"></i>
+              </button>
+              <button type="button" class="btn ${btnClass} text-nowrap px-2" onclick="agregarAlCarritoPos(${p.id}, 1, true)" ${sinStock ? "disabled" : ""}>
+                <i class="bi ${sinStock ? "bi-x-circle" : "bi-plus-lg"} me-1"></i>${sinStock ? "Agotado" : "Agregar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function filtrarCatalogoPos() {
+    const q = (document.getElementById("pos-buscador-catalogo").value || "").trim().toLowerCase();
+    const cat = document.getElementById("pos-filtro-categoria").value;
+    actualizarPillsColeccion(cat);
+
+    const filtrados = catalogoProductos
+      .filter((p) => {
+        if (cat && p.categoria !== cat) return false;
+        if (!q) return true;
+        return (
+          p.nombre.toLowerCase().includes(q) ||
+          p.codigo_barras.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q) ||
+          (p.categoria_display || "").toLowerCase().includes(q) ||
+          (p.descripcion || "").toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => {
+        const ordA = ORDEN_CATEGORIAS_POS[a.categoria] ?? 99;
+        const ordB = ORDEN_CATEGORIAS_POS[b.categoria] ?? 99;
+        if (ordA !== ordB) return ordA - ordB;
+        return a.nombre.localeCompare(b.nombre, "es");
+      });
+
+    const badgeCount = document.getElementById("pos-catalogo-count");
+    if (badgeCount) {
+      badgeCount.textContent = `${filtrados.length} ${filtrados.length === 1 ? "ítem" : "ítems"}`;
+    }
+
+    const grid = document.getElementById("pos-grid-productos");
+    if (!filtrados.length) {
+      grid.innerHTML = `<div class="text-center py-5 text-secondary">No se encontraron productos ni prestaciones para la colección o búsqueda seleccionada.</div>`;
+      return;
+    }
+
+    const accesosRapidos = filtrados.filter((p) => p.categoria === "CONSULTA");
+    const restoCatalogo = filtrados.filter((p) => p.categoria !== "CONSULTA");
+
+    let html = "";
+    if (accesosRapidos.length) {
+      html += `
+        <div class="pos-quick-section">
+          <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+            <div class="fw-bold text-info small text-uppercase">
+              <i class="bi bi-lightning-charge-fill text-warning me-1"></i>Acceso Rápido · Consultas e Inyecciones
+            </div>
+            <span class="badge bg-info text-dark fw-bold">${accesosRapidos.length} prestaciones</span>
+          </div>
+          <div class="pos-catalog-grid">
+            ${accesosRapidos.map((p) => renderTarjetaProductoPos(p, true)).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    if (restoCatalogo.length) {
+      html += `
+        <div>
+          ${
+            accesosRapidos.length
+              ? `<div class="d-flex justify-content-between align-items-center mb-2">
+                   <div class="fw-bold text-secondary small text-uppercase">
+                     <i class="bi bi-box-seam me-1 text-info"></i>Productos y Prestaciones por Colección
+                   </div>
+                   <span class="small text-secondary font-monospace">${restoCatalogo.length} ítems</span>
+                 </div>`
+              : ""
+          }
+          <div class="pos-catalog-grid">
+            ${restoCatalogo.map((p) => renderTarjetaProductoPos(p, false)).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    grid.innerHTML = html;
+  }
+
+  async function procesarEscaneoInput(e) {
+    e.preventDefault();
+    const input = document.getElementById("pos-barcode-input");
+    const codigo = input.value.trim();
+    if (!codigo) return;
+    await escanearCodigoDirecto(codigo);
+    input.value = "";
+    input.focus();
+  }
+
+  async function escanearCodigoDirecto(codigo) {
+    try {
+      const prod = await PetCare.apiFetch(`/api/productos/escanear/?codigo=${encodeURIComponent(codigo)}`);
+      agregarAlCarritoPos(prod.id, 1, true);
+    } catch (err) {
+      sonarBeepScanner(false);
+      PetCare.toast(err.message, "danger");
+    }
+  }
+
+  function agregarAlCarritoPos(productoId, cantidad = 1, conBeep = true) {
+    const prod = catalogoProductos.find((p) => Number(p.id) === Number(productoId));
+    if (!prod) return;
+
+    const existente = carritoPos.find((item) => Number(item.producto_id) === Number(prod.id));
+    const cantidadResultante = (existente ? existente.cantidad : 0) + cantidad;
+    if (prod.controla_stock_fisico && cantidadResultante > Number(prod.stock)) {
+      if (conBeep) sonarBeepScanner(false);
+      PetCare.toast(`Stock insuficiente para "${prod.nombre}" (disponible: ${prod.stock} u.).`, "warning");
+      return;
+    }
+
+    if (existente) {
+      existente.cantidad += cantidad;
+    } else {
+      carritoPos.push({
+        producto_id: prod.id,
+        codigo_barras: prod.codigo_barras,
+        nombre: prod.nombre,
+        precio: prod.precio,
+        es_servicio: prod.es_servicio,
+        cantidad: cantidad,
+      });
+    }
+
+    if (conBeep) {
+      sonarBeepScanner(true);
+      PetCare.toast(`[${prod.codigo_barras}] ${prod.nombre} (${formatoCLP(prod.precio)}) agregado a caja.`, "info");
+    }
+    guardarCarritoEnStorage();
+    renderCarritoPos();
+  }
+
+  function cambiarCantidadCarrito(productoId, delta) {
+    const idx = carritoPos.findIndex((i) => Number(i.producto_id) === Number(productoId));
+    if (idx === -1) return;
+    if (delta > 0) {
+      const prod = catalogoProductos.find((p) => Number(p.id) === Number(productoId));
+      if (prod && prod.controla_stock_fisico && carritoPos[idx].cantidad + delta > Number(prod.stock)) {
+        PetCare.toast(`No hay más stock disponible de "${prod.nombre}" (${prod.stock} u.).`, "warning");
+        return;
+      }
+    }
+    carritoPos[idx].cantidad += delta;
+    if (carritoPos[idx].cantidad <= 0) {
+      carritoPos.splice(idx, 1);
+    }
+    guardarCarritoEnStorage();
+    renderCarritoPos();
+  }
+
+  function vaciarCarritoPos() {
+    carritoPos = [];
+    guardarCarritoEnStorage();
+    renderCarritoPos();
+  }
+
+  function calcularTotalesCarrito() {
+    const bruto = carritoPos.reduce((acc, i) => acc + i.precio * i.cantidad, 0);
+    const descuento = Math.max(0, Number(document.getElementById("pos-descuento")?.value || 0));
+    const total = Math.max(0, bruto - descuento);
+    const neto = Math.round(total / 1.19);
+    const iva = Math.max(0, total - neto);
+    return { bruto, descuento, total, neto, iva };
+  }
+
+  function renderCarritoPos() {
+    const contenedor = document.getElementById("pos-lista-carrito");
+    if (!carritoPos.length) {
+      contenedor.innerHTML = `
+        <div class="text-center py-5 text-secondary">
+          <i class="bi bi-cart3 display-5 d-block mb-2 opacity-50"></i>
+          <div class="small">La cinta de caja está vacía.</div>
+          <small class="text-muted">Pistolee un código de barras o pulse un botón de cobro rápido.</small>
+        </div>
+      `;
+    } else {
+      contenedor.innerHTML = carritoPos
+        .map(
+          (item) => `
+          <div class="d-flex justify-content-between align-items-center p-2 mb-2 rounded-3" style="background: rgba(17, 24, 39, 0.9); border: 1px solid var(--pc-border);">
+            <div class="min-w-0 flex-grow-1 pe-2">
+              <div class="fw-semibold text-white small text-truncate">${PetCare.escapeHtml(item.nombre)}</div>
+              <div class="text-secondary font-monospace" style="font-size: 0.72rem;">
+                <i class="bi bi-upc me-1"></i>${PetCare.escapeHtml(item.codigo_barras)} · ${formatoCLP(item.precio)} c/u
+              </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-secondary py-0 px-2" onclick="cambiarCantidadCarrito(${item.producto_id}, -1)">-</button>
+                <span class="btn btn-dark disabled py-0 px-2 font-monospace text-white">${item.cantidad}</span>
+                <button type="button" class="btn btn-outline-secondary py-0 px-2" onclick="cambiarCantidadCarrito(${item.producto_id}, 1)">+</button>
+              </div>
+              <div class="fw-bold text-info font-monospace text-end" style="min-width: 78px;">
+                ${formatoCLP(item.precio * item.cantidad)}
+              </div>
+            </div>
+          </div>
+        `
+        )
+        .join("");
+    }
+
+    const { total, neto, iva } = calcularTotalesCarrito();
+    document.getElementById("pos-resumen-neto").textContent = formatoCLP(neto);
+    document.getElementById("pos-resumen-iva").textContent = formatoCLP(iva);
+    document.getElementById("pos-resumen-total").textContent = formatoCLP(total);
+  }
+
+  function filtrarMascotasPos() {
+    const tutorId = document.getElementById("pos-tutor").value;
+    const selectMascota = document.getElementById("pos-mascota");
+    Array.from(selectMascota.options).forEach((opt) => {
+      if (!opt.value) return;
+      opt.hidden = Boolean(tutorId && opt.dataset.tutorId !== tutorId);
+    });
+    const primeraVisible = Array.from(selectMascota.options).find((o) => o.value && !o.hidden);
+    selectMascota.value = tutorId && primeraVisible ? primeraVisible.value : "";
+  }
+
+  function sincronizarTutorPos() {
+    const opt = document.getElementById("pos-mascota").selectedOptions[0];
+    if (opt && opt.dataset.tutorId) {
+      document.getElementById("pos-tutor").value = opt.dataset.tutorId;
+    }
+  }
+
+  function abrirTerminalPago(metodoInicial = "TARJETA_DEBITO") {
+    if (!carritoPos.length) {
+      PetCare.toast("Agregue al menos una consulta, vacuna o producto a la caja antes de cobrar.", "warning");
+      return;
+    }
+    const { total } = calcularTotalesCarrito();
+    document.getElementById("pago-alerta").classList.add("d-none");
+    document.getElementById("efectivo-recibido").value = total;
+    cambiarMetodoPagoModal(metodoInicial);
+    modalTerminalInst.show();
+  }
+
+  function cambiarMetodoPagoModal(metodo) {
+    metodoPagoActual = metodo;
+    const mapRadios = {
+      TARJETA_DEBITO: "mp-debito",
+      TARJETA_CREDITO: "mp-credito",
+      EFECTIVO: "mp-efectivo",
+      TRANSFERENCIA: "mp-transferencia",
+    };
+    const radio = document.getElementById(mapRadios[metodo]);
+    if (radio) radio.checked = true;
+
+    const esTarjeta = metodo === "TARJETA_DEBITO" || metodo === "TARJETA_CREDITO";
+    document.getElementById("panel-pago-tarjeta").classList.toggle("d-none", !esTarjeta);
+    document.getElementById("panel-pago-efectivo").classList.toggle("d-none", metodo !== "EFECTIVO");
+    document.getElementById("bloque-cuotas-credito").classList.toggle("d-none", metodo !== "TARJETA_CREDITO");
+
+    if (metodo === "TARJETA_DEBITO") {
+      document.getElementById("card-input-cuotas").value = "1";
+    }
+    actualizarPreviewTarjeta();
+    calcularVueltoEfectivo();
+  }
+
+  function actualizarPreviewTarjeta() {
+    const { total } = calcularTotalesCarrito();
+    const rawNum = (document.getElementById("card-input-numero").value || "").replace(/\D/g, "").slice(0, 16);
+    const formateado = rawNum.replace(/(\d{4})(?=\d)/g, "$1 ");
+    document.getElementById("card-input-numero").value = formateado;
+
+    const ultimos4 = rawNum.slice(-4) || "8841";
+    const primeros4 = rawNum.slice(0, 4) || "4532";
+    document.getElementById("card-preview-numero").textContent = `${primeros4} •••• •••• ${ultimos4}`;
+    document.getElementById("card-preview-titular").textContent =
+      (document.getElementById("card-input-titular").value || "CLIENTE PETCARE").toUpperCase();
+    document.getElementById("card-preview-exp").textContent =
+      document.getElementById("card-input-exp").value || "08/29";
+
+    let marca = "VISA";
+    if (rawNum.startsWith("5")) marca = "MASTERCARD";
+    else if (rawNum.startsWith("3")) marca = "AMEX";
+    else if (metodoPagoActual === "TARJETA_DEBITO") marca = "REDCOMPRA";
+
+    document.getElementById("card-preview-marca").textContent = marca;
+    document.getElementById("card-preview-tipo").textContent =
+      metodoPagoActual === "TARJETA_CREDITO" ? "CRÉDITO BANCARIO" : "REDCOMPRA DÉBITO";
+
+    const cuotas = metodoPagoActual === "TARJETA_CREDITO" ? Number(document.getElementById("card-input-cuotas").value || 1) : 1;
+    const valorCuota = Math.round(total / cuotas);
+    document.getElementById("terminal-monto-total").textContent = formatoCLP(total);
+    document.getElementById("terminal-detalle-cuotas").textContent =
+      metodoPagoActual === "TARJETA_CREDITO"
+        ? `${cuotas} cuota(s) de ${formatoCLP(valorCuota)} con Tarjeta ${marca}`
+        : metodoPagoActual === "TARJETA_DEBITO"
+        ? `Cargo inmediato Redcompra Débito (${marca})`
+        : metodoPagoActual === "EFECTIVO"
+        ? "Pago en Efectivo por Caja"
+        : "Transferencia Electrónica Inmediata";
+  }
+
+  function simularLecturaContactless() {
+    sonarBeepScanner(true);
+    const tarjetasDemo = [
+      { num: "4532 7710 9920 4412", tit: "SEBASTIAN GONZALEZ", exp: "11/29" },
+      { num: "5412 3300 8812 9015", tit: "FRANCISCA SILVA", exp: "05/28" },
+      { num: "4000 1234 5678 9010", tit: "RODRIGO VALDES", exp: "09/30" },
+    ];
+    const elegida = tarjetasDemo[Math.floor(Math.random() * tarjetasDemo.length)];
+    document.getElementById("card-input-numero").value = elegida.num;
+    document.getElementById("card-input-titular").value = elegida.tit;
+    document.getElementById("card-input-exp").value = elegida.exp;
+    actualizarPreviewTarjeta();
+    PetCare.toast("Tarjeta leída por Contactless NFC correctamente.", "info");
+  }
+
+  function setBilletes(monto) {
+    document.getElementById("efectivo-recibido").value = monto;
+    calcularVueltoEfectivo();
+  }
+
+  function calcularVueltoEfectivo() {
+    const { total } = calcularTotalesCarrito();
+    const recibido = Number(document.getElementById("efectivo-recibido")?.value || 0);
+    const vuelto = Math.max(0, recibido - total);
+    const el = document.getElementById("efectivo-vuelto");
+    if (el) el.textContent = formatoCLP(vuelto);
+  }
+
+  async function confirmarPagoPos(e) {
+    e.preventDefault();
+    const alerta = document.getElementById("pago-alerta");
+    alerta.classList.add("d-none");
+
+    const { total, descuento } = calcularTotalesCarrito();
+    const rawNum = (document.getElementById("card-input-numero").value || "").replace(/\D/g, "");
+    const esTarjeta = metodoPagoActual === "TARJETA_DEBITO" || metodoPagoActual === "TARJETA_CREDITO";
+
+    if (esTarjeta && rawNum.length < 12) {
+      alerta.textContent = "Ingrese un número de tarjeta válido (mínimo 12 dígitos) o use el botón Contactless.";
+      alerta.classList.remove("d-none");
+      return;
+    }
+
+    const tutorId = document.getElementById("pos-tutor").value;
+    const mascotaId = document.getElementById("pos-mascota").value;
+    const urlParams = new URLSearchParams(window.location.search);
+    const citaId = urlParams.get("cita_id");
+
+    const payload = {
+      tutor: tutorId ? Number(tutorId) : null,
+      mascota: mascotaId ? Number(mascotaId) : null,
+      cita: citaId && citaId.isdigit ? Number(citaId) : null,
+      metodo_pago: metodoPagoActual,
+      marca_tarjeta: esTarjeta ? document.getElementById("card-preview-marca").textContent : "",
+      ultimos_4_digitos: esTarjeta ? rawNum.slice(-4) : "",
+      cuotas: metodoPagoActual === "TARJETA_CREDITO" ? Number(document.getElementById("card-input-cuotas").value || 1) : 1,
+      descuento: descuento,
+      monto_recibido: metodoPagoActual === "EFECTIVO" ? Number(document.getElementById("efectivo-recibido").value || total) : total,
+      items: carritoPos.map((i) => ({ producto_id: i.producto_id, cantidad: i.cantidad })),
+    };
+
+    try {
+      const orden = await PetCare.apiFetch("/api/ordenes-pago/", {
+        method: "POST",
+        body: payload,
+      });
+      sonarBeepScanner(true);
+      modalTerminalInst.hide();
+      vaciarCarritoPos();
+      await cargarCatalogoPos();
+      mostrarBoletaEmitida(orden);
+      PetCare.toast(`Pago aprobado (${orden.codigo_autorizacion}). Boleta ${orden.numero_boleta} emitida.`, "success");
+    } catch (err) {
+      alerta.textContent = err.message;
+      alerta.classList.remove("d-none");
+    }
+  }
+
+  function mostrarBoletaEmitida(orden) {
+    const lineasHtml = (orden.detalles || [])
+      .map(
+        (d) => `
+        <div class="d-flex justify-content-between small py-1 border-bottom border-secondary-subtle">
+          <div>
+            <span class="fw-semibold text-white">${d.cantidad}x ${PetCare.escapeHtml(d.nombre_item)}</span>
+            <div class="text-secondary font-monospace" style="font-size: 0.7rem;">EAN: ${PetCare.escapeHtml(d.codigo_barras)}</div>
+          </div>
+          <span class="font-monospace text-light fw-semibold">${formatoCLP(d.subtotal)}</span>
+        </div>
+      `
+      )
+      .join("");
+
+    document.getElementById("boleta-imprimible-area").innerHTML = `
+      <div class="p-3 rounded-3" style="background: #0b0f19; border: 1px dashed var(--pc-cyan);">
+        <div class="text-center mb-3">
+          <div class="fw-bold fs-5 text-white">CLÍNICA VETERINARIA PETCARE S.A.</div>
+          <div class="small text-secondary font-monospace">RUT: 76.543.210-K · Casa Matriz Santiago</div>
+          <div class="badge bg-info text-dark fw-bold mt-1">${PetCare.escapeHtml(orden.numero_boleta)}</div>
+        </div>
+
+        <div class="small text-secondary mb-2">
+          <div><strong>Cliente:</strong> ${PetCare.escapeHtml(orden.tutor_nombre)} (${PetCare.escapeHtml(orden.tutor_rut)})</div>
+          <div><strong>Paciente:</strong> ${PetCare.escapeHtml(orden.mascota_nombre)}</div>
+          <div><strong>Cajero(a):</strong> ${PetCare.escapeHtml(orden.cajero_nombre)}</div>
+        </div>
+
+        <hr class="border-secondary-subtle my-2" />
+        ${lineasHtml}
+
+        <div class="mt-3 small">
+          <div class="d-flex justify-content-between text-secondary">
+            <span>Monto Neto:</span><span class="font-monospace">${formatoCLP(orden.subtotal_neto)}</span>
+          </div>
+          <div class="d-flex justify-content-between text-secondary">
+            <span>IVA (19%):</span><span class="font-monospace">${formatoCLP(orden.iva)}</span>
+          </div>
+          ${orden.descuento ? `<div class="d-flex justify-content-between text-warning"><span>Descuento:</span><span class="font-monospace">-${formatoCLP(orden.descuento)}</span></div>` : ""}
+          <div class="d-flex justify-content-between fw-bold fs-5 text-white mt-1 pt-1 border-top border-secondary-subtle">
+            <span>TOTAL PAGADO:</span><span class="font-monospace text-success">${formatoCLP(orden.total)}</span>
+          </div>
+        </div>
+
+        <div class="mt-2 p-2 rounded bg-dark small font-monospace text-secondary">
+          <div>Medio: ${PetCare.escapeHtml(orden.metodo_pago_display)} ${orden.ultimos_4_digitos ? `(${orden.marca_tarjeta} •••• ${orden.ultimos_4_digitos} · ${orden.cuotas}c)` : ""}</div>
+          <div>Autorización POS: <strong class="text-info">${PetCare.escapeHtml(orden.codigo_autorizacion)}</strong></div>
+          ${orden.vuelto ? `<div class="text-warning">Vuelto entregado: ${formatoCLP(orden.vuelto)}</div>` : ""}
+        </div>
+
+        <div class="text-center mt-3 bg-white p-2 rounded">
+          <svg id="barcode-boleta-svg"></svg>
+        </div>
+      </div>
+    `;
+
+    modalBoletaInst.show();
+    setTimeout(() => {
+      try {
+        JsBarcode("#barcode-boleta-svg", orden.numero_boleta, {
+          format: "CODE128",
+          lineColor: "#000000",
+          width: 1.8,
+          height: 45,
+          displayValue: true,
+          fontSize: 13,
+        });
+      } catch (_) {}
+    }, 120);
+  }
+
+  async function verBoletaPorId(id) {
+    try {
+      const orden = await PetCare.apiFetch(`/api/ordenes-pago/${id}/`);
+      mostrarBoletaEmitida(orden);
+    } catch (err) {
+      PetCare.toast(err.message, "danger");
+    }
+  }
+
+  function abrirModalConsultorPrecios() {
+    modalConsultorInst.show();
+    setTimeout(() => document.getElementById("consultor-input").focus(), 200);
+  }
+
+  async function consultarPrecioPorCodigo(e) {
+    e.preventDefault();
+    const codigo = document.getElementById("consultor-input").value.trim();
+    if (!codigo) return;
+    try {
+      const p = await PetCare.apiFetch(`/api/productos/escanear/?codigo=${encodeURIComponent(codigo)}`);
+      sonarBeepScanner(true);
+      renderDetalleConsultor(p);
+    } catch (err) {
+      sonarBeepScanner(false);
+      document.getElementById("consultor-resultado").innerHTML = `<div class="alert alert-danger small">${PetCare.escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function mostrarDetalleEnConsultor(prodId) {
+    const p = catalogoProductos.find((item) => Number(item.id) === Number(prodId));
+    if (!p) return;
+    modalConsultorInst.show();
+    renderDetalleConsultor(p);
+  }
+
+  function renderDetalleConsultor(p) {
+    document.getElementById("consultor-resultado").innerHTML = `
+      <div class="p-3 rounded-3 text-start" style="background: #0b0f19; border: 1px solid var(--pc-cyan);">
+        <img src="${p.imagen_url}" alt="${PetCare.escapeHtml(p.nombre)}" class="w-100 rounded-3 mb-3" style="max-height: 180px; object-fit: cover;" />
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="badge bg-info text-dark">${PetCare.escapeHtml(p.categoria_display)}</span>
+          <span class="badge bg-dark border border-secondary-subtle">${PetCare.escapeHtml(p.especie_display)}</span>
+        </div>
+        <h5 class="fw-bold text-white mb-1">${PetCare.escapeHtml(p.nombre)}</h5>
+        <p class="small text-secondary mb-3">${PetCare.escapeHtml(p.descripcion)}</p>
+        <div class="d-flex justify-content-between align-items-center p-2 rounded bg-dark mb-3">
+          <span class="small text-secondary">PRECIO UNITARIO:</span>
+          <span class="h2 fw-bold mb-0 font-monospace" style="color: var(--pc-emerald);">${formatoCLP(p.precio)}</span>
+        </div>
+        <div class="text-center bg-white p-2 rounded mb-3">
+          <svg id="barcode-consultor-svg"></svg>
+        </div>
+        <button type="button" class="btn btn-pc-cyan w-100" onclick="agregarAlCarritoPos(${p.id}, 1, true); modalConsultorInst.hide();">
+          <i class="bi bi-cart-plus-fill me-1"></i>Agregar a la Cinta de Caja
+        </button>
+      </div>
+    `;
+    setTimeout(() => {
+      try {
+        JsBarcode("#barcode-consultor-svg", p.codigo_barras, {
+          format: "CODE128",
+          lineColor: "#000000",
+          width: 2,
+          height: 48,
+          displayValue: true,
+        });
+      } catch (_) {}
+    }, 80);
+  }
+
+  function abrirModalCamaraBarcode() {
+    modalCamaraInst.show();
+    setTimeout(() => {
+      try {
+        if (window.Html5Qrcode) {
+          html5QrScanner = new Html5Qrcode("lector-camara-box");
+          html5QrScanner
+            .start(
+              { facingMode: "environment" },
+              { fps: 10, qrbox: { width: 250, height: 120 } },
+              (decodedText) => {
+                detenerCamaraBarcode();
+                modalCamaraInst.hide();
+                escanearCodigoDirecto(decodedText);
+              },
+              () => {}
+            )
+            .catch(() => {
+              document.getElementById("lector-camara-box").innerHTML =
+                '<div class="p-3 text-secondary small"><i class="bi bi-camera-video-off fs-2 d-block mb-1 text-info"></i>Cámara no detectada o sin permiso. Use los botones de simulación láser inferiores o la pistola USB.</div>';
+            });
+        }
+      } catch (_) {}
+    }, 250);
+  }
+
+  function detenerCamaraBarcode() {
+    if (html5QrScanner) {
+      html5QrScanner.stop().catch(() => {});
+      html5QrScanner = null;
+    }
+  }
+
+  function simularEscaneoDesdeCamara(codigo) {
+    detenerCamaraBarcode();
+    modalCamaraInst.hide();
+    escanearCodigoDirecto(codigo);
+  }
+</script>
+{% endblock %}

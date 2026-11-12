@@ -96,6 +96,9 @@
                   <button type="button" class="btn btn-outline-success" onclick="abrirModalMascota(null, {{ t.id }})" title="Agregar mascota a este tutor">
                     <i class="bi bi-plus-lg"></i> Mascota
                   </button>
+                  <a href="{% url 'calendario_citas' %}?tutor_id={{ t.id }}" class="btn btn-outline-warning" title="Agendar cita para este tutor">
+                    <i class="bi bi-calendar-plus"></i> Cita
+                  </a>
                   <button type="button" class="btn btn-outline-info" onclick="editarTutor({{ t.id }})" title="Editar tutor">
                     <i class="bi bi-pencil-square"></i>
                   </button>
@@ -134,7 +137,23 @@
           <tbody id="tbody-mascotas">
             {% for m in mascotas %}
             <tr>
-              <td class="fw-bold text-white">{{ m.nombre }}</td>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  {% if m.foto_url %}
+                  <img src="{{ m.foto_url }}" alt="{{ m.nombre }}" class="rounded-circle object-fit-cover border border-info-subtle flex-shrink-0" style="width: 38px; height: 38px;" />
+                  {% else %}
+                  <span class="rounded-circle d-inline-flex align-items-center justify-content-center bg-dark border border-secondary-subtle text-info flex-shrink-0" style="width: 38px; height: 38px;">
+                    <i class="bi bi-heart-pulse"></i>
+                  </span>
+                  {% endif %}
+                  <div>
+                    <div class="fw-bold text-white">{{ m.nombre }}</div>
+                    <small class="text-secondary">
+                      {% if m.color %}{{ m.color }} · {% endif %}Chip: <span class="font-monospace">{{ m.numero_chip|default:"No posee" }}</span>
+                    </small>
+                  </div>
+                </div>
+              </td>
               <td>
                 <span class="badge text-bg-dark border border-secondary-subtle">{{ m.get_especie_display }}</span>
                 <span class="text-secondary small ms-1">{{ m.raza|default:"Mestizo" }} · {{ m.get_sexo_display }}</span>
@@ -156,6 +175,12 @@
               </td>
               <td class="text-end">
                 <div class="btn-group btn-group-sm">
+                  <a href="{% url 'calendario_citas' %}?mascota_id={{ m.id }}&tutor_id={{ m.tutor_id }}" class="btn btn-outline-warning" title="Agendar cita a esta mascota">
+                    <i class="bi bi-calendar-plus"></i> Cita
+                  </a>
+                  <a href="{% url 'caja_pos' %}?mascota_id={{ m.id }}" class="btn btn-outline-success" title="Cobrar consulta o vacuna en Caja POS">
+                    <i class="bi bi-upc-scan"></i> Caja
+                  </a>
                   <a href="{% url 'ficha_clinica_mascota' m.id %}" class="btn btn-outline-light" title="Ver expediente clínico">
                     <i class="bi bi-file-earmark-medical"></i> Ficha
                   </a>
@@ -181,10 +206,10 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
-     Modal Bootstrap: Alta / Edición de Tutor
+     Modal Bootstrap: Alta / Edición de Tutor (+ Mascota Inicial)
      ═══════════════════════════════════════════════════════════ -->
 <div class="modal fade" id="modalTutor" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
     <form class="modal-content" id="form-tutor" onsubmit="guardarTutor(event)">
       <div class="modal-header">
         <h5 class="modal-title fw-bold text-white" id="modalTutorTitulo">Registrar Tutor</h5>
@@ -196,8 +221,8 @@
 
         <div class="row g-3">
           <div class="col-md-5">
-            <label class="form-label small text-secondary">RUT Chileno *</label>
-            <input type="text" id="tutor-rut" class="form-control font-monospace" placeholder="12345678-5" required />
+            <label class="form-label small text-secondary">RUT Chileno * <span class="text-info">(DV automático)</span></label>
+            <input type="text" id="tutor-rut" class="form-control font-monospace" placeholder="Ej: 15432198-K" required />
           </div>
           <div class="col-md-7">
             <label class="form-label small text-secondary">Teléfono *</label>
@@ -211,101 +236,68 @@
             <label class="form-label small text-secondary">Apellidos *</label>
             <input type="text" id="tutor-apellidos" class="form-control" required />
           </div>
-          <div class="col-12">
+          <div class="col-md-6">
             <label class="form-label small text-secondary">Correo Electrónico</label>
             <input type="email" id="tutor-email" class="form-control" placeholder="tutor@correo.cl" />
           </div>
-          <div class="col-12">
+          <div class="col-md-6">
             <label class="form-label small text-secondary">Dirección</label>
             <input type="text" id="tutor-direccion" class="form-control" placeholder="Av. Providencia 1234, Santiago" />
+          </div>
+        </div>
+
+        <!-- Bloque integrado para crear la mascota del nuevo tutor en el mismo paso -->
+        <div id="bloque-mascota-integrada" class="mt-4 pt-3 border-top border-secondary-subtle">
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="check-incluir-mascota" checked onchange="toggleMascotaIntegrada()" />
+            <label class="form-check-label fw-semibold text-info" for="check-incluir-mascota">
+              <i class="bi bi-heart-pulse-fill me-1"></i>Registrar también su Mascota (Paciente) en este mismo paso
+            </label>
+          </div>
+
+          <div id="campos-mascota-integrada" class="row g-3 p-3 rounded-3" style="background: rgba(6, 182, 212, 0.06); border: 1px solid rgba(6, 182, 212, 0.25);">
+            <div class="col-md-5">
+              <label class="form-label small text-secondary">Nombre de la Mascota *</label>
+              <input type="text" id="tutor-mascota-nombre" class="form-control" placeholder="Ej: Luna, Rocky, Copito..." />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small text-secondary">Especie *</label>
+              <select id="tutor-mascota-especie" class="form-select">
+                {% for valor, etiqueta in especies %}
+                <option value="{{ valor }}">{{ etiqueta }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small text-secondary">Sexo *</label>
+              <select id="tutor-mascota-sexo" class="form-select">
+                {% for valor, etiqueta in sexos %}
+                <option value="{{ valor }}">{{ etiqueta }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-secondary">Raza</label>
+              <input type="text" id="tutor-mascota-raza" class="form-control" placeholder="Ej: Mestizo, Poodle, Siamés..." />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small text-secondary">Peso Aproximado (kg)</label>
+              <input type="number" step="0.01" min="0.01" id="tutor-mascota-peso" class="form-control" placeholder="Ej: 8.50" />
+            </div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="submit" class="btn btn-pc-cyan" id="btn-guardar-tutor">
-          <i class="bi bi-check2-circle me-1"></i>Guardar Tutor
+          <i class="bi bi-check2-circle me-1"></i>Guardar Tutor y Mascota
         </button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     Modal Bootstrap: Alta / Edición de Mascota
-     ═══════════════════════════════════════════════════════════ -->
-<div class="modal fade" id="modalMascota" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <form class="modal-content" id="form-mascota" onsubmit="guardarMascota(event)">
-      <div class="modal-header">
-        <h5 class="modal-title fw-bold text-white" id="modalMascotaTitulo">Registrar Mascota</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="mascota-id" />
-        <div id="mascota-alerta" class="alert alert-danger d-none small py-2"></div>
-
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label small text-secondary">Tutor Responsable *</label>
-            <select id="mascota-tutor" class="form-select" required>
-              <option value="">Seleccione un tutor...</option>
-              {% for t in tutores %}
-              <option value="{{ t.id }}">{{ t.nombre_completo }} ({{ t.rut }})</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small text-secondary">Nombre del Paciente *</label>
-            <input type="text" id="mascota-nombre" class="form-control" required />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label small text-secondary">Especie *</label>
-            <select id="mascota-especie" class="form-select" required>
-              {% for valor, etiqueta in especies %}
-              <option value="{{ valor }}">{{ etiqueta }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label small text-secondary">Raza</label>
-            <input type="text" id="mascota-raza" class="form-control" placeholder="Ej: Golden Retriever" />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label small text-secondary">Sexo *</label>
-            <select id="mascota-sexo" class="form-select" required>
-              {% for valor, etiqueta in sexos %}
-              <option value="{{ valor }}">{{ etiqueta }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small text-secondary">Fecha de Nacimiento</label>
-            <input type="date" id="mascota-nacimiento" class="form-control" />
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small text-secondary">Peso Inicial (kg)</label>
-            <input type="number" step="0.01" min="0.01" id="mascota-peso" class="form-control" placeholder="Ej: 12.50" />
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small text-secondary">Alergias Conocidas</label>
-            <textarea id="mascota-alergias" class="form-control" rows="2" placeholder="Ej: Alergia a penicilina"></textarea>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label small text-secondary">Observaciones Clínicas</label>
-            <textarea id="mascota-observaciones" class="form-control" rows="2" placeholder="Carácter, antecedentes, chip..."></textarea>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-pc-emerald">
-          <i class="bi bi-check2-circle me-1"></i>Guardar Mascota
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
+{% include "includes/modal_mascota.html" %}
 {% endblock %}
 
 {% block extra_js %}
@@ -326,18 +318,22 @@
   });
 
   async function recargarDatosRecepcion(termino = "") {
-    const query = termino ? `?q=${encodeURIComponent(termino)}` : "";
+    const params = new URLSearchParams({ sin_paginar: "1" });
+    if (termino) params.set("q", termino);
+    const query = `?${params.toString()}`;
     try {
-      const [resTutores, resMascotas] = await Promise.all([
+      const [resTutores, resMascotas, todosTutores] = await Promise.all([
         PetCare.apiFetch(`/api/tutores/${query}`),
         PetCare.apiFetch(`/api/mascotas/${query}`),
+        termino ? PetCare.apiFetch(`/api/tutores/?sin_paginar=1`) : Promise.resolve(null),
       ]);
       const tutores = resTutores.results || resTutores;
       const mascotas = resMascotas.results || resMascotas;
+      const listaSelector = todosTutores ? (todosTutores.results || todosTutores) : tutores;
 
       renderTablaTutores(tutores);
       renderTablaMascotas(mascotas);
-      actualizarSelectorTutores(tutores);
+      actualizarSelectorTutores(listaSelector);
 
       document.getElementById("contador-tutores").textContent = resTutores.count ?? tutores.length;
       document.getElementById("contador-mascotas").textContent = resMascotas.count ?? mascotas.length;
@@ -376,6 +372,9 @@
                 <button type="button" class="btn btn-outline-success" onclick="abrirModalMascota(null, ${t.id})" title="Agregar mascota a este tutor">
                   <i class="bi bi-plus-lg"></i> Mascota
                 </button>
+                <a href="/calendario/?tutor_id=${t.id}" class="btn btn-outline-warning" title="Agendar cita para este tutor">
+                  <i class="bi bi-calendar-plus"></i> Cita
+                </a>
                 <button type="button" class="btn btn-outline-info" onclick="editarTutor(${t.id})" title="Editar tutor">
                   <i class="bi bi-pencil-square"></i>
                 </button>
@@ -401,9 +400,21 @@
         const alergiaHtml = m.alergias
           ? `<span class="pc-badge pc-badge-CANCELADA">⚠ ${PetCare.escapeHtml(m.alergias.slice(0, 28))}</span>`
           : `<span class="text-secondary small">Sin alergias</span>`;
+        const avatarHtml = m.foto_url
+          ? `<img src="${PetCare.escapeHtml(m.foto_url)}" alt="${PetCare.escapeHtml(m.nombre)}" class="rounded-circle object-fit-cover border border-info-subtle flex-shrink-0" style="width: 38px; height: 38px;" />`
+          : `<span class="rounded-circle d-inline-flex align-items-center justify-content-center bg-dark border border-secondary-subtle text-info flex-shrink-0" style="width: 38px; height: 38px;"><i class="bi bi-heart-pulse"></i></span>`;
+        const subDetalle = `${m.color ? PetCare.escapeHtml(m.color) + " · " : ""}Chip: <span class="font-monospace">${PetCare.escapeHtml(m.numero_chip || "No posee")}</span>`;
         return `
           <tr>
-            <td class="fw-bold text-white">${PetCare.escapeHtml(m.nombre)}</td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                ${avatarHtml}
+                <div>
+                  <div class="fw-bold text-white">${PetCare.escapeHtml(m.nombre)}</div>
+                  <small class="text-secondary">${subDetalle}</small>
+                </div>
+              </div>
+            </td>
             <td>
               <span class="badge text-bg-dark border border-secondary-subtle">${PetCare.escapeHtml(m.especie_display)}</span>
               <span class="text-secondary small ms-1">${PetCare.escapeHtml(m.raza || "Mestizo")} · ${PetCare.escapeHtml(m.sexo_display)}</span>
@@ -419,6 +430,12 @@
             <td>${alergiaHtml}</td>
             <td class="text-end">
               <div class="btn-group btn-group-sm">
+                <a href="/calendario/?mascota_id=${m.id}&tutor_id=${m.tutor}" class="btn btn-outline-warning" title="Agendar cita a esta mascota">
+                  <i class="bi bi-calendar-plus"></i> Cita
+                </a>
+                <a href="/caja/?mascota_id=${m.id}" class="btn btn-outline-success" title="Cobrar consulta o vacuna en Caja POS">
+                  <i class="bi bi-upc-scan"></i> Caja
+                </a>
                 <a href="/fichas/mascota/${m.id}/" class="btn btn-outline-light" title="Ver expediente clínico">
                   <i class="bi bi-file-earmark-medical"></i> Ficha
                 </a>
@@ -447,11 +464,28 @@
     if (valorActual) select.value = valorActual;
   }
 
+  function toggleMascotaIntegrada() {
+    const chk = document.getElementById("check-incluir-mascota");
+    const box = document.getElementById("campos-mascota-integrada");
+    const btn = document.getElementById("btn-guardar-tutor");
+    if (chk && box) {
+      box.classList.toggle("d-none", !chk.checked);
+      if (btn) {
+        btn.innerHTML = chk.checked
+          ? '<i class="bi bi-check2-circle me-1"></i>Guardar Tutor y Mascota'
+          : '<i class="bi bi-check2-circle me-1"></i>Guardar Tutor';
+      }
+    }
+  }
+
   function abrirModalTutor() {
     document.getElementById("form-tutor").reset();
     document.getElementById("tutor-id").value = "";
     document.getElementById("modalTutorTitulo").textContent = "Registrar Nuevo Tutor";
     document.getElementById("tutor-alerta").classList.add("d-none");
+    document.getElementById("bloque-mascota-integrada").classList.remove("d-none");
+    document.getElementById("check-incluir-mascota").checked = true;
+    toggleMascotaIntegrada();
     modalTutorInst.show();
   }
 
@@ -467,6 +501,8 @@
       document.getElementById("tutor-direccion").value = t.direccion || "";
       document.getElementById("modalTutorTitulo").textContent = `Editar Tutor: ${t.nombre_completo}`;
       document.getElementById("tutor-alerta").classList.add("d-none");
+      document.getElementById("bloque-mascota-integrada").classList.add("d-none");
+      document.getElementById("btn-guardar-tutor").innerHTML = '<i class="bi bi-check2-circle me-1"></i>Guardar Cambios';
       modalTutorInst.show();
     } catch (err) {
       PetCare.toast(err.message, "danger");
@@ -478,6 +514,15 @@
     const id = document.getElementById("tutor-id").value;
     const alerta = document.getElementById("tutor-alerta");
     alerta.classList.add("d-none");
+
+    const incluirMascota = !id && document.getElementById("check-incluir-mascota")?.checked;
+    const nombreMascota = (document.getElementById("tutor-mascota-nombre")?.value || "").trim();
+
+    if (incluirMascota && !nombreMascota) {
+      alerta.textContent = "Ingrese el nombre de la mascota o desactive el interruptor de mascota integrada.";
+      alerta.classList.remove("d-none");
+      return;
+    }
 
     const payload = {
       rut: document.getElementById("tutor-rut").value.trim(),
@@ -492,8 +537,26 @@
       const url = id ? `/api/tutores/${id}/` : `/api/tutores/`;
       const method = id ? "PATCH" : "POST";
       const tutor = await PetCare.apiFetch(url, { method, body: payload });
+
+      if (incluirMascota && nombreMascota) {
+        const pesoVal = document.getElementById("tutor-mascota-peso").value;
+        await PetCare.apiFetch(`/api/mascotas/`, {
+          method: "POST",
+          body: {
+            tutor: tutor.id,
+            nombre: nombreMascota,
+            especie: document.getElementById("tutor-mascota-especie").value,
+            raza: document.getElementById("tutor-mascota-raza").value.trim(),
+            sexo: document.getElementById("tutor-mascota-sexo").value,
+            peso: pesoVal ? pesoVal : null,
+          },
+        });
+        PetCare.toast(`Tutor ${tutor.nombre_completo} y su mascota "${nombreMascota}" registrados y listos para agendar.`);
+      } else {
+        PetCare.toast(`Tutor ${tutor.nombre_completo} (${tutor.rut}) guardado correctamente.`);
+      }
+
       modalTutorInst.hide();
-      PetCare.toast(`Tutor ${tutor.nombre_completo} (${tutor.rut}) guardado correctamente.`);
       await recargarDatosRecepcion(document.getElementById("buscador-recepcion").value.trim());
     } catch (err) {
       alerta.textContent = err.message;
@@ -501,11 +564,14 @@
     }
   }
 
-  function abrirModalMascota(mascotaId = null, tutorIdPreseleccionado = null) {
-    document.getElementById("form-mascota").reset();
-    document.getElementById("mascota-id").value = "";
+  async function abrirModalMascota(mascotaId = null, tutorIdPreseleccionado = null) {
+    limpiarFormularioMascota();
     document.getElementById("modalMascotaTitulo").textContent = "Registrar Nueva Mascota";
-    document.getElementById("mascota-alerta").classList.add("d-none");
+    try {
+      const resTutores = await PetCare.apiFetch("/api/tutores/?sin_paginar=1");
+      const tutores = resTutores.results || resTutores;
+      actualizarSelectorTutores(tutores);
+    } catch (_) {}
     if (tutorIdPreseleccionado) {
       document.getElementById("mascota-tutor").value = String(tutorIdPreseleccionado);
     }
@@ -515,18 +581,8 @@
   async function editarMascota(id) {
     try {
       const m = await PetCare.apiFetch(`/api/mascotas/${id}/`);
-      document.getElementById("mascota-id").value = m.id;
-      document.getElementById("mascota-tutor").value = String(m.tutor);
-      document.getElementById("mascota-nombre").value = m.nombre;
-      document.getElementById("mascota-especie").value = m.especie;
-      document.getElementById("mascota-raza").value = m.raza || "";
-      document.getElementById("mascota-sexo").value = m.sexo;
-      document.getElementById("mascota-nacimiento").value = m.fecha_nacimiento || "";
-      document.getElementById("mascota-peso").value = m.peso || "";
-      document.getElementById("mascota-alergias").value = m.alergias || "";
-      document.getElementById("mascota-observaciones").value = m.observaciones || "";
+      poblarFormularioMascota(m);
       document.getElementById("modalMascotaTitulo").textContent = `Editar Paciente: ${m.nombre}`;
-      document.getElementById("mascota-alerta").classList.add("d-none");
       modalMascotaInst.show();
     } catch (err) {
       PetCare.toast(err.message, "danger");
@@ -535,29 +591,11 @@
 
   async function guardarMascota(e) {
     e.preventDefault();
-    const id = document.getElementById("mascota-id").value;
     const alerta = document.getElementById("mascota-alerta");
     alerta.classList.add("d-none");
 
-    const pesoVal = document.getElementById("mascota-peso").value;
-    const nacVal = document.getElementById("mascota-nacimiento").value;
-
-    const payload = {
-      tutor: Number(document.getElementById("mascota-tutor").value),
-      nombre: document.getElementById("mascota-nombre").value.trim(),
-      especie: document.getElementById("mascota-especie").value,
-      raza: document.getElementById("mascota-raza").value.trim(),
-      sexo: document.getElementById("mascota-sexo").value,
-      fecha_nacimiento: nacVal || null,
-      peso: pesoVal ? pesoVal : null,
-      alergias: document.getElementById("mascota-alergias").value.trim(),
-      observaciones: document.getElementById("mascota-observaciones").value.trim(),
-    };
-
     try {
-      const url = id ? `/api/mascotas/${id}/` : `/api/mascotas/`;
-      const method = id ? "PATCH" : "POST";
-      const mascota = await PetCare.apiFetch(url, { method, body: payload });
+      const mascota = await enviarFormularioMascota();
       modalMascotaInst.hide();
       PetCare.toast(`Paciente "${mascota.nombre}" guardado correctamente.`);
       await recargarDatosRecepcion(document.getElementById("buscador-recepcion").value.trim());

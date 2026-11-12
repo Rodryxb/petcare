@@ -1,0 +1,280 @@
+<!-- Modal reutilizable: Alta / Edición Detallada de Mascota -->
+<div class="modal fade" id="modalMascota" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <form class="modal-content" id="form-mascota" onsubmit="guardarMascota(event)">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white" id="modalMascotaTitulo">Registrar Nueva Mascota</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="mascota-id" />
+        <div id="mascota-alerta" class="alert alert-danger d-none small py-2"></div>
+
+        <div class="row g-3">
+          <!-- Foto de la Mascota + Identificación Básica -->
+          <div class="col-12">
+            <div class="p-3 rounded-3 d-flex flex-wrap align-items-center gap-3" style="background: rgba(8, 12, 22, 0.72); border: 1px solid var(--pc-border);">
+              <div
+                id="mascota-foto-preview-box"
+                class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 overflow-hidden"
+                style="width: 96px; height: 96px; background: #070b14; border: 1px dashed rgba(34, 211, 238, 0.45);"
+              >
+                <img id="mascota-foto-preview" src="" alt="Vista previa" class="w-100 h-100 object-fit-cover d-none" />
+                <i id="mascota-foto-placeholder" class="bi bi-camera-fill fs-2 text-info opacity-75"></i>
+              </div>
+              <div class="flex-grow-1 min-w-0">
+                <label class="form-label small text-info fw-semibold mb-1" for="mascota-foto">
+                  <i class="bi bi-image me-1"></i>Foto del Animal / Mascota
+                </label>
+                <input
+                  type="file"
+                  id="mascota-foto"
+                  class="form-control form-control-sm"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onchange="previsualizarFotoMascota(this)"
+                />
+                <small class="text-secondary d-block mt-1">Formatos JPG, PNG o WEBP. Se mostrará en su Ficha Clínica y listado.</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tutor Responsable y Nombre -->
+          <div class="col-md-6">
+            <label class="form-label small text-secondary" for="mascota-tutor">Tutor Responsable *</label>
+            <select id="mascota-tutor" class="form-select" required>
+              <option value="">Seleccione un tutor...</option>
+              {% for t in tutores %}
+              <option value="{{ t.id }}">{{ t.nombre_completo }} ({{ t.rut }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small text-secondary" for="mascota-nombre">Nombre del Paciente *</label>
+            <input type="text" id="mascota-nombre" class="form-control" placeholder="Ej: Max, Luna, Kiwi..." required />
+          </div>
+
+          <!-- Especie, Raza, Sexo, Color -->
+          <div class="col-md-3">
+            <label class="form-label small text-secondary" for="mascota-especie">Especie *</label>
+            <select id="mascota-especie" class="form-select" required>
+              {% for valor, etiqueta in especies %}
+              <option value="{{ valor }}">{{ etiqueta }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small text-secondary" for="mascota-raza">Raza</label>
+            <input type="text" id="mascota-raza" class="form-control" placeholder="Ej: Golden Retriever" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small text-secondary" for="mascota-sexo">Sexo *</label>
+            <select id="mascota-sexo" class="form-select" required>
+              {% for valor, etiqueta in sexos %}
+              <option value="{{ valor }}">{{ etiqueta }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small text-secondary" for="mascota-color">Color</label>
+            <input type="text" id="mascota-color" class="form-control" placeholder="Ej: Dorado, Atigrado, Negro" />
+          </div>
+
+          <!-- Fecha Nacimiento, Peso, Condición Corporal, N° Chip -->
+          <div class="col-md-3">
+            <label class="form-label small text-secondary" for="mascota-nacimiento">Fecha de Nacimiento</label>
+            <input type="date" id="mascota-nacimiento" class="form-control" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small text-secondary" for="mascota-peso">Peso Inicial / Actual (kg)</label>
+            <input type="number" step="0.01" min="0.01" id="mascota-peso" class="form-control" placeholder="Ej: 12.50" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small text-secondary" for="mascota-condicion-corporal">Condición Corporal (1 a 5)</label>
+            <select id="mascota-condicion-corporal" class="form-select">
+              <option value="">Sin evaluar</option>
+              <option value="1">1 — Muy delgado</option>
+              <option value="2">2 — Bajo peso</option>
+              <option value="3">3 — Ideal / Normal</option>
+              <option value="4">4 — Sobrepeso</option>
+              <option value="5">5 — Obeso</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small text-secondary" for="mascota-chip">N° Chip</label>
+            <div class="input-group">
+              <input type="text" id="mascota-chip" class="form-control font-monospace" placeholder="Ej: 982000123456789" />
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-chip-no-posee" onclick="toggleSinChipMascota()">
+                No posee
+              </button>
+            </div>
+          </div>
+
+          <!-- Cicatrices & Cirugías / Esterilización -->
+          <div class="col-md-3">
+            <label class="form-label small text-secondary" for="mascota-cicatrices">Cicatrices (Sí o No)</label>
+            <select id="mascota-cicatrices" class="form-select">
+              <option value="false">No</option>
+              <option value="true">Sí</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small text-secondary" for="mascota-cirugias">Cirugías / Esterilización (Sí o No)</label>
+            <select id="mascota-cirugias" class="form-select">
+              <option value="false">No</option>
+              <option value="true">Sí</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small text-secondary" for="mascota-alergias">Alergias</label>
+            <input type="text" id="mascota-alergias" class="form-control" placeholder="Ej: Alergia a penicilina, pollo, o ninguna conocida" />
+          </div>
+
+          <!-- Datos Medioambientales, Nutrición, Entorno -->
+          <div class="col-md-4">
+            <label class="form-label small text-secondary" for="mascota-medioambiente">Datos Medioambientales</label>
+            <textarea id="mascota-medioambiente" class="form-control" rows="2" placeholder="Ej: Casa con patio cerrado / departamento interior, paseos diarios..."></textarea>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small text-secondary" for="mascota-nutricion">Nutrición (qué come, cuántas veces)</label>
+            <textarea id="mascota-nutricion" class="form-control" rows="2" placeholder="Ej: Alimento seco Royal Canin, 2 veces al día..."></textarea>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small text-secondary" for="mascota-entorno">Entorno (con qué animales comparte)</label>
+            <textarea id="mascota-entorno" class="form-control" rows="2" placeholder="Ej: Convive con 1 gato adulto y 1 perro pequeño..."></textarea>
+          </div>
+
+          <!-- Observaciones Clínicas -->
+          <div class="col-12">
+            <label class="form-label small text-secondary" for="mascota-observaciones">Observaciones Clínicas y Antecedentes</label>
+            <textarea id="mascota-observaciones" class="form-control" rows="2" placeholder="Carácter, antecedentes médicos previos, observaciones generales..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-pc-emerald">
+          <i class="bi bi-check2-circle me-1"></i>Guardar Mascota
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function mostrarPreviewFotoUrl(url) {
+    const img = document.getElementById("mascota-foto-preview");
+    const placeholder = document.getElementById("mascota-foto-placeholder");
+    if (!img || !placeholder) return;
+    if (url) {
+      img.src = url;
+      img.classList.remove("d-none");
+      placeholder.classList.add("d-none");
+    } else {
+      img.src = "";
+      img.classList.add("d-none");
+      placeholder.classList.remove("d-none");
+    }
+  }
+
+  function previsualizarFotoMascota(input) {
+    const file = input.files && input.files[0];
+    if (!file) {
+      mostrarPreviewFotoUrl("");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => mostrarPreviewFotoUrl(ev.target.result);
+    reader.readAsDataURL(file);
+  }
+
+  function toggleSinChipMascota() {
+    const input = document.getElementById("mascota-chip");
+    if (!input) return;
+    input.value = input.value.trim().toLowerCase() === "no posee" ? "" : "No posee";
+    if (input.value === "") input.focus();
+  }
+
+  function limpiarFormularioMascota() {
+    document.getElementById("form-mascota").reset();
+    document.getElementById("mascota-id").value = "";
+    document.getElementById("mascota-cicatrices").value = "false";
+    document.getElementById("mascota-cirugias").value = "false";
+    document.getElementById("mascota-condicion-corporal").value = "";
+    document.getElementById("mascota-alerta").classList.add("d-none");
+    mostrarPreviewFotoUrl("");
+  }
+
+  function poblarFormularioMascota(m) {
+    document.getElementById("form-mascota").reset();
+    document.getElementById("mascota-id").value = m.id;
+    document.getElementById("mascota-tutor").value = String(m.tutor);
+    document.getElementById("mascota-nombre").value = m.nombre || "";
+    document.getElementById("mascota-especie").value = m.especie || "CANINO";
+    document.getElementById("mascota-raza").value = m.raza || "";
+    document.getElementById("mascota-sexo").value = m.sexo || "MACHO";
+    document.getElementById("mascota-color").value = m.color || "";
+    document.getElementById("mascota-nacimiento").value = m.fecha_nacimiento || "";
+    document.getElementById("mascota-peso").value = m.peso || "";
+    document.getElementById("mascota-condicion-corporal").value = m.condicion_corporal ? String(m.condicion_corporal) : "";
+    document.getElementById("mascota-chip").value = m.numero_chip || "";
+    document.getElementById("mascota-cicatrices").value = m.cicatrices ? "true" : "false";
+    document.getElementById("mascota-cirugias").value = m.cirugias_esterilizacion ? "true" : "false";
+    document.getElementById("mascota-medioambiente").value = m.datos_medioambientales || "";
+    document.getElementById("mascota-nutricion").value = m.nutricion || "";
+    document.getElementById("mascota-entorno").value = m.entorno || "";
+    document.getElementById("mascota-alergias").value = m.alergias || "";
+    document.getElementById("mascota-observaciones").value = m.observaciones || "";
+    document.getElementById("mascota-alerta").classList.add("d-none");
+    mostrarPreviewFotoUrl(m.foto_url || "");
+  }
+
+  async function enviarFormularioMascota() {
+    const id = document.getElementById("mascota-id").value;
+    const url = id ? `/api/mascotas/${id}/` : `/api/mascotas/`;
+    const method = id ? "PATCH" : "POST";
+
+    const pesoVal = document.getElementById("mascota-peso").value;
+    const nacVal = document.getElementById("mascota-nacimiento").value;
+    const ccVal = document.getElementById("mascota-condicion-corporal").value;
+    const fotoInput = document.getElementById("mascota-foto");
+    const archivoFoto = fotoInput && fotoInput.files && fotoInput.files[0];
+
+    const datos = {
+      tutor: Number(document.getElementById("mascota-tutor").value),
+      nombre: document.getElementById("mascota-nombre").value.trim(),
+      especie: document.getElementById("mascota-especie").value,
+      raza: document.getElementById("mascota-raza").value.trim(),
+      sexo: document.getElementById("mascota-sexo").value,
+      color: document.getElementById("mascota-color").value.trim(),
+      fecha_nacimiento: nacVal || null,
+      peso: pesoVal ? pesoVal : null,
+      condicion_corporal: ccVal ? Number(ccVal) : null,
+      cicatrices: document.getElementById("mascota-cicatrices").value === "true",
+      cirugias_esterilizacion: document.getElementById("mascota-cirugias").value === "true",
+      numero_chip: document.getElementById("mascota-chip").value.trim() || "No posee",
+      datos_medioambientales: document.getElementById("mascota-medioambiente").value.trim(),
+      nutricion: document.getElementById("mascota-nutricion").value.trim(),
+      entorno: document.getElementById("mascota-entorno").value.trim(),
+      alergias: document.getElementById("mascota-alergias").value.trim(),
+      observaciones: document.getElementById("mascota-observaciones").value.trim(),
+    };
+
+    let bodyPayload = datos;
+    if (archivoFoto) {
+      const fd = new FormData();
+      Object.entries(datos).forEach(([clave, valor]) => {
+        if (valor === null) {
+          fd.append(clave, "");
+        } else if (typeof valor === "boolean") {
+          fd.append(clave, valor ? "true" : "false");
+        } else {
+          fd.append(clave, String(valor));
+        }
+      });
+      fd.append("foto", archivoFoto);
+      bodyPayload = fd;
+    }
+
+    return PetCare.apiFetch(url, { method, body: bodyPayload });
+  }
+</script>

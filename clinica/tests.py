@@ -3,9 +3,11 @@ from datetime import date, time, timedelta
 from types import SimpleNamespace
 
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import QueryDict
 from django.test import RequestFactory, SimpleTestCase
 from django.urls import reverse
 from django.utils import timezone
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
 from usuarios.models import Usuario
 from usuarios.permissions import (
@@ -18,8 +20,15 @@ from usuarios.permissions import (
     LecturaPersonalEscrituraSuperusuario,
 )
 
-from .models import Cita, ControlVacuna, FichaClinica, Mascota, Tutor
-from .serializers import CitaCalendarioSerializer, CitaSerializer
+from .context_processors import sidebar_alertas
+from .models import Cita, ControlVacuna, FichaClinica, Mascota, ProductoServicio, Tutor
+from .serializers import (
+    CitaCalendarioSerializer,
+    CitaSerializer,
+    ControlVacunaSerializer,
+    MascotaSerializer,
+    ProductoServicioSerializer,
+)
 from .services import cambiar_estado_cita
 from .validators import calcular_dv, normalizar_rut, normalizar_termino_busqueda, validar_rut
 
@@ -195,6 +204,32 @@ class CitaReglasSinBDTests(SimpleTestCase):
             serializer.validate({"estado": Cita.Estado.PROGRAMADA})
         self.assertIn("estado", ctx.exception.detail)
 
+    def test_serializador_cita_compone_motivos_choices_y_otro_motivo(self):
+        serializer = CitaSerializer()
+        attrs = serializer.validate(
+            {
+                "motivos_seleccionados": [
+                    "CONTROL_ANUAL",
+                    "VACUNA_ANTIRRABICA",
+                    "DESPARASITACION",
+                    "OTRO",
+                ],
+                "otro_motivo": "Revisión de patita delantera",
+            }
+        )
+        self.assertEqual(
+            attrs["motivo"],
+            "Control Anual, Vacuna Antirrábica, Desparasitación Interna / Externa, Otro motivo: Revisión de patita delantera",
+        )
+
+        with self.assertRaises(Exception) as ctx_otro:
+            serializer.validate({"motivos_seleccionados": ["CONTROL_ANUAL", "OTRO"], "otro_motivo": "   "})
+        self.assertIn("otro_motivo", ctx_otro.exception.detail)
+
+        with self.assertRaises(Exception) as ctx_vacio:
+            serializer.validate({"motivos_seleccionados": []})
+        self.assertIn("motivo", ctx_vacio.exception.detail)
+
 
 class ControlVacunaEstadoTests(SimpleTestCase):
     def test_calcular_estado_vencido_al_dia_y_pendiente(self):
@@ -222,6 +257,123 @@ class ControlVacunaEstadoTests(SimpleTestCase):
             fecha_proximo_vencimiento=hoy + timedelta(days=7),
         )
         self.assertEqual(pendiente.calcular_estado(hoy=hoy), ControlVacuna.Estado.PENDIENTE)
+
+    def test_serializador_cuenta_regresiva_y_alerta_una_semana(self):
+        hoy = timezone.localdate()
+        tutor = Tutor(nombres="Sebastián", apellidos="González", rut="12345678-5", telefono="+56912345678", email="s@test.cl")
+        mascota = Mascota(nombre="Thor", especie=Mascota.Especie.CANINO, tutor=tutor)
+
+        critica = ControlVacuna(
+            mascota=mascota,
+            tipo=ControlVacuna.Tipo.VACUNA,
+            nombre_producto="Vacuna Óctuple Canina",
+            fecha_aplicacion=hoy - timedelta(days=15),
+            fecha_proximo_vencimiento=hoy + timedelta(days=6),
+        )
+        serializer = ControlVacunaSerializer()
+        self.assertEqual(serializer.get_dias_para_vencer(critica), 6)
+        self.assertEqual(serializer.get_dias_totales_ciclo(critica), 21)
+        self.assertTrue(serializer.get_alerta_una_semana(critica))
+        self.assertEqual(serializer.get_semaforo(critica), "CRITICA")
+        self.assertIn("una semana", serializer.get_mensaje_alerta(critica))
+        self.assertGreater(serializer.get_porcentaje_transcurrido(critica), 0)
+
+        lejana = ControlVacuna(
+            mascota=mascota,
+            tipo=ControlVacuna.Tipo.VACUNA,
+            nombre_producto="Antirrábica Canina",
+            fecha_aplicacion=hoy - timedelta(days=5),
+            fecha_proximo_vencimiento=hoy + timedelta(days=30),
+        )
+        self.assertFalse(serializer.get_alerta_una_semana(lejana))
+        self.assertEqual(serializer.get_semaforo(lejana), "AL_DIA")
+        self.assertIn("Cuenta regresiva activa", serializer.get_mensaje_alerta(lejana))
+
+    def test_serializador_vacuna_externa_y_lugar(self):
+        hoy = timezone.localdate()
+        tutor = Tutor(nombres="Rosa", apellidos="Lara", rut="12345678-5", telefono="+56912345678", email="r@test.cl")
+        mascota = Mascota(id=2, nombre="Toby", especie=Mascota.Especie.CANINO, tutor=tutor)
+        externa = ControlVacuna(
+            mascota=mascota,
+            tipo=ControlVacuna.Tipo.VACUNA,
+            nombre_producto="Vacuna Sextuple Externa",
+            fecha_aplicacion=hoy - timedelta(days=10),
+            fecha_proximo_vencimiento=hoy + timedelta(days=355),
+            es_externa=True,
+            lugar_aplicacion="Clínica Veterinaria Sur",
+        )
+        data = ControlVacunaSerializer(externa).data
+        self.assertTrue(data["es_externa"])
+        self.assertEqual(data["lugar_aplicacion"], "Clínica Veterinaria Sur")
+        self.assertIsNone(data["aplicado_por_nombre"])
+
+        recep = Usuario(id=99, username="recep_vac", rol=Usuario.Rol.RECEP)
+        req = RequestFactory().post("/api/controles-vacunas/")
+        req.user = recep
+        ser = ControlVacunaSerializer(context={"request": req})
+        validado = ser.validate(
+            {
+                "es_externa": True,
+                "lugar_aplicacion": "Municipalidad",
+                "fecha_aplicacion": hoy - timedelta(days=2),
+                "fecha_proximo_vencimiento": hoy + timedelta(days=363),
+            }
+        )
+        self.assertIsNone(validado["aplicado_por"])
+
+        # Mientras que una vacuna interna aplicada sigue exigiendo VET o ADMIN
+        with self.assertRaises(DRFValidationError):
+            ser.validate(
+                {
+                    "es_externa": False,
+                    "fecha_aplicacion": hoy,
+                    "fecha_proximo_vencimiento": hoy + timedelta(days=365),
+                }
+            )
+
+
+class StockYVencimientosTests(SimpleTestCase):
+    def test_estado_vencimiento_stock_y_serializador(self):
+        hoy = timezone.localdate()
+        vacuna_critica = ProductoServicio(
+            codigo_barras="780999000001",
+            sku="VAC-TEST-1",
+            nombre="Vacuna Óctuple Prueba",
+            categoria=ProductoServicio.Categoria.VACUNA,
+            precio=15000,
+            stock=3,
+            stock_minimo=5,
+            lote="LOT-TEST-01",
+            fecha_vencimiento=hoy + timedelta(days=5),
+            es_servicio=True,
+        )
+        self.assertEqual(vacuna_critica.calcular_dias_vencimiento_lote(hoy=hoy), 5)
+        self.assertEqual(vacuna_critica.calcular_estado_vencimiento_lote(hoy=hoy), "CRITICO")
+        self.assertEqual(vacuna_critica.calcular_estado_stock(), "BAJO")
+
+        ser = ProductoServicioSerializer()
+        self.assertEqual(ser.get_estado_vencimiento(vacuna_critica), "CRITICO")
+        self.assertEqual(ser.get_estado_stock(vacuna_critica), "BAJO")
+        self.assertTrue(ser.get_tiene_alerta(vacuna_critica))
+
+        consulta = ProductoServicio(
+            codigo_barras="780999000002",
+            sku="SRV-TEST-2",
+            nombre="Consulta General",
+            categoria=ProductoServicio.Categoria.CONSULTA,
+            precio=20000,
+            stock=999,
+            stock_minimo=5,
+            es_servicio=True,
+        )
+        self.assertEqual(ser.get_estado_vencimiento(consulta), "SIN_VENCIMIENTO")
+        self.assertEqual(ser.get_estado_stock(consulta), "SERVICIO")
+        self.assertFalse(ser.get_tiene_alerta(consulta))
+
+    def test_context_processor_anonimo_sin_consulta_bd(self):
+        req = RequestFactory().get("/")
+        req.user = SimpleNamespace(is_authenticated=False)
+        self.assertEqual(sidebar_alertas(req), {})
 
 
 class PermisosRBACTests(SimpleTestCase):
@@ -275,3 +427,68 @@ class PermisosRBACTests(SimpleTestCase):
         self.assertTrue(perm.has_permission(self._req("GET", self.recep), None))
         self.assertFalse(perm.has_permission(self._req("POST", self.vet), None))
         self.assertTrue(perm.has_permission(self._req("POST", self.admin), None))
+
+
+class MascotaFichaDetalladaTests(SimpleTestCase):
+    def test_serializador_mascota_ficha_detallada_y_multipart(self):
+        tutor = Tutor(
+            id=10,
+            nombres="Camila",
+            apellidos="Rodríguez",
+            rut="12345678-5",
+            telefono="+56912345678",
+            email="camila@test.cl",
+        )
+        mascota = Mascota(
+            id=5,
+            tutor=tutor,
+            nombre="Max",
+            especie=Mascota.Especie.CANINO,
+            raza="Golden Retriever",
+            sexo=Mascota.Sexo.MACHO,
+            color="Dorado",
+            condicion_corporal=3,
+            cicatrices=False,
+            cirugias_esterilizacion=True,
+            datos_medioambientales="Casa con patio cerrado",
+            nutricion="Pellet adulto 2 veces al día",
+            entorno="Convive con 1 gato adulto",
+            numero_chip="982000123456789",
+            alergias="Ninguna",
+            observaciones="Paciente tranquilo",
+        )
+        data = MascotaSerializer(mascota).data
+        self.assertEqual(data["tutor_email"], "camila@test.cl")
+        self.assertEqual(data["color"], "Dorado")
+        self.assertEqual(data["condicion_corporal"], 3)
+        self.assertFalse(data["cicatrices"])
+        self.assertTrue(data["cirugias_esterilizacion"])
+        self.assertEqual(data["numero_chip"], "982000123456789")
+        self.assertEqual(data["nutricion"], "Pellet adulto 2 veces al día")
+        self.assertEqual(data["entorno"], "Convive con 1 gato adulto")
+        self.assertEqual(data["datos_medioambientales"], "Casa con patio cerrado")
+
+        qd = QueryDict(mutable=True)
+        qd.update(
+            {
+                "nombre": "Max",
+                "especie": "CANINO",
+                "sexo": "MACHO",
+                "fecha_nacimiento": "",
+                "peso": "",
+                "condicion_corporal": "",
+            }
+        )
+        ser = MascotaSerializer(instance=mascota, data=qd, partial=True)
+        # Normaliza cadenas vacías de FormData sin lanzar error de formato en fecha/peso/condición corporal
+        ser.fields["tutor"].required = False
+        interna = ser.to_internal_value(qd)
+        self.assertIsNone(interna["fecha_nacimiento"])
+        self.assertIsNone(interna["peso"])
+        self.assertIsNone(interna["condicion_corporal"])
+
+    def test_condicion_corporal_rango_valido(self):
+        mascota = Mascota(nombre="Luna", especie=Mascota.Especie.FELINO, sexo=Mascota.Sexo.HEMBRA, condicion_corporal=6)
+        with self.assertRaises(ValidationError) as ctx:
+            mascota.full_clean(exclude=["tutor"])
+        self.assertIn("condicion_corporal", ctx.exception.message_dict)

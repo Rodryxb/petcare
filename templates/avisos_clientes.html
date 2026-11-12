@@ -1,0 +1,730 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Avisos a Clientes | PetCare{% endblock %}
+{% block page_header %}Avisos a Clientes{% endblock %}
+{% block page_subtitle %}Tarjetas ordenadas por cuenta regresiva para avisar rápido por correo o teléfono{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pc-alert-banner-top {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.14) 0%, rgba(239, 68, 68, 0.12) 100%);
+        border: 1px solid rgba(245, 158, 11, 0.45);
+        border-radius: 14px;
+        padding: 0.9rem 1.2rem;
+    }
+
+    /* ── Grilla de tarjetas ─────────────────────────────── */
+    .pc-avisos-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+        gap: 1rem;
+    }
+
+    .pc-aviso-card {
+        --tone: var(--pc-emerald);
+        --tone-soft: rgba(16, 185, 129, 0.12);
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        background: var(--pc-bg-surface);
+        border: 1px solid var(--pc-border);
+        border-top: 4px solid var(--tone);
+        border-radius: 16px;
+        padding: 1rem 1rem 0.9rem;
+        min-height: 360px;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .pc-aviso-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35);
+        border-color: var(--tone);
+    }
+    .pc-aviso-card.tone-critica {
+        --tone: var(--pc-amber);
+        --tone-soft: rgba(245, 158, 11, 0.13);
+    }
+    .pc-aviso-card.tone-vencida {
+        --tone: var(--pc-danger);
+        --tone-soft: rgba(239, 68, 68, 0.13);
+    }
+
+    .pc-aviso-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.6rem;
+    }
+    .pc-aviso-especie {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        background: var(--tone-soft);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    .pc-aviso-chip {
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--tone);
+        background: var(--tone-soft);
+        border: 1px solid var(--tone);
+        border-radius: 999px;
+        padding: 0.18rem 0.6rem;
+        white-space: nowrap;
+    }
+
+    /* Contador grande central */
+    .pc-aviso-contador {
+        text-align: center;
+        background: var(--tone-soft);
+        border-radius: 14px;
+        padding: 0.7rem 0.5rem 0.55rem;
+        margin-bottom: 0.7rem;
+    }
+    .pc-aviso-num {
+        font-size: 2.7rem;
+        font-weight: 800;
+        line-height: 1;
+        color: var(--tone);
+        font-variant-numeric: tabular-nums;
+    }
+    .pc-aviso-num.is-hoy {
+        font-size: 2.1rem;
+        letter-spacing: 0.04em;
+    }
+    .pc-aviso-num-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #cbd5e1;
+        margin-top: 0.15rem;
+    }
+    .pc-aviso-reloj {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #94a3b8;
+        margin-top: 0.25rem;
+        font-variant-numeric: tabular-nums;
+        min-height: 1.1em;
+    }
+
+    .pc-aviso-mascota {
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: #fff;
+        line-height: 1.2;
+    }
+    .pc-aviso-vacuna {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--pc-cyan);
+        line-height: 1.25;
+    }
+    .pc-aviso-fecha {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        margin-top: 0.15rem;
+    }
+
+    .pc-aviso-tutor {
+        margin-top: 0.7rem;
+        padding-top: 0.6rem;
+        border-top: 1px dashed rgba(148, 163, 184, 0.25);
+        font-size: 0.8rem;
+        color: #94a3b8;
+    }
+    .pc-aviso-tutor strong {
+        color: #f1f5f9;
+        font-weight: 600;
+    }
+    .pc-aviso-tutor .contacto {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .pc-aviso-estado {
+        margin-top: auto;
+        padding-top: 0.6rem;
+        font-size: 0.74rem;
+    }
+
+    .pc-aviso-acciones {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.4rem;
+        margin-top: 0.6rem;
+    }
+    .pc-accion-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.15rem;
+        padding: 0.45rem 0.1rem;
+        border-radius: 10px;
+        border: 1px solid var(--pc-border);
+        background: rgba(11, 15, 25, 0.7);
+        color: #e2e8f0;
+        font-size: 0.68rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .pc-accion-btn i { font-size: 1.05rem; }
+    .pc-accion-btn.correo { color: #22d3ee; }
+    .pc-accion-btn.correo:hover { background: rgba(6, 182, 212, 0.2); border-color: #06b6d4; }
+    .pc-accion-btn.whatsapp { color: #34d399; }
+    .pc-accion-btn.whatsapp:hover { background: rgba(16, 185, 129, 0.2); border-color: #10b981; }
+    .pc-accion-btn.sms { color: #fbbf24; }
+    .pc-accion-btn.sms:hover { background: rgba(245, 158, 11, 0.2); border-color: #f59e0b; }
+    .pc-accion-btn.botar { color: #fca5a5; }
+    .pc-accion-btn.botar:hover { background: rgba(239, 68, 68, 0.22); border-color: #ef4444; }
+
+    .pc-filter-pill {
+        border: 1px solid var(--pc-border);
+        background: rgba(17, 24, 39, 0.85);
+        color: #cbd5e1;
+        border-radius: 999px;
+        padding: 0.38rem 0.9rem;
+        font-size: 0.83rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .pc-filter-pill.active {
+        background: rgba(245, 158, 11, 0.18);
+        border-color: var(--pc-amber);
+        color: #fde68a;
+    }
+
+    .pc-channel-btn {
+        border: 1px solid var(--pc-border);
+        background: rgba(11, 15, 25, 0.7);
+        color: #cbd5e1;
+        border-radius: 10px;
+        padding: 0.6rem;
+        text-align: center;
+        cursor: pointer;
+        width: 100%;
+    }
+    .pc-channel-btn.active {
+        border-color: var(--pc-cyan);
+        background: rgba(6, 182, 212, 0.16);
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 1. ALERTA SUPERIOR -->
+<section class="pc-alert-banner-top mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <i class="bi bi-bell-fill text-warning fs-3"></i>
+            <div>
+                <h5 class="mb-0 fw-bold text-warning" id="titulo-alertas-proximidad">
+                    Alertas de proximidad: {{ resumen.criticas }} vacuna(s) vencen esta semana
+                </h5>
+                <div class="small text-light opacity-75">
+                    Avisa al tutor por correo, WhatsApp o SMS antes de que se cumpla el plazo.
+                </div>
+            </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <span class="badge text-bg-warning px-3 py-2" id="badge-criticas">{{ resumen.criticas }} esta semana</span>
+            <span class="badge text-bg-danger px-3 py-2" id="badge-vencidas">{{ resumen.vencidas }} vencidas</span>
+            <span class="badge text-bg-info px-3 py-2" id="badge-enviados">{{ resumen.enviados }} avisos enviados</span>
+        </div>
+    </div>
+</section>
+
+<!-- 2. FILTROS, ORDEN Y BÚSQUEDA -->
+<div class="pc-card p-3 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex flex-wrap gap-2" id="filtros-avisos">
+            <button type="button" class="pc-filter-pill active" data-filter="PRIORITARIOS">
+                <i class="bi bi-bell-fill me-1"></i>Por avisar (<span id="cnt-prioritarios">0</span>)
+            </button>
+            <button type="button" class="pc-filter-pill" data-filter="CRITICA">
+                Vencen esta semana (<span id="cnt-criticas">0</span>)
+            </button>
+            <button type="button" class="pc-filter-pill" data-filter="VENCIDA">
+                Vencidas (<span id="cnt-vencidas">0</span>)
+            </button>
+            <button type="button" class="pc-filter-pill" data-filter="TODOS">
+                Todas (<span id="cnt-todas">0</span>)
+            </button>
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <select id="orden-avisos" class="form-select form-select-sm" style="width:auto;">
+                <option value="URGENTE">Más urgente primero</option>
+                <option value="LEJANO">Más lejano primero</option>
+            </select>
+            <div class="input-group input-group-sm" style="width: 250px;">
+                <span class="input-group-text bg-transparent border-secondary text-secondary"><i class="bi bi-search"></i></span>
+                <input type="text" id="buscador-avisos" class="form-control" placeholder="Buscar tutor, mascota o vacuna...">
+            </div>
+            <a href="{% url 'recordatorios' %}" class="btn btn-sm btn-outline-info">
+                <i class="bi bi-hourglass-split me-1"></i>Ver cuenta regresiva
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- 3. TARJETAS DE AVISO -->
+<section id="lista-avisos-clientes" class="mb-4">
+    <div class="pc-card p-4 text-center text-secondary">
+        <div class="spinner-border spinner-border-sm text-warning me-2"></div>Cargando avisos pendientes...
+    </div>
+</section>
+
+<!-- 4. HISTORIAL -->
+<section class="pc-card p-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="text-white fw-semibold mb-0">
+            <i class="bi bi-send-check-fill text-info me-2"></i>Historial de avisos enviados
+        </h6>
+        <button type="button" class="btn btn-sm btn-outline-info" id="btn-recargar-avisos">
+            <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
+        </button>
+    </div>
+    <div class="table-responsive">
+        <table class="pc-table table table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Fecha y hora</th>
+                    <th>Tutor</th>
+                    <th>Mascota y vacuna</th>
+                    <th>Canal</th>
+                    <th>Destinatario</th>
+                    <th>Estado</th>
+                    <th>Responsable</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-historial-avisos">
+                <tr><td colspan="7" class="text-center text-secondary py-3">Cargando historial...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- MODAL ENVIAR AVISO -->
+<div class="modal fade" id="modalAvisoCliente" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-white">
+                    <i class="bi bi-megaphone-fill text-warning me-2"></i>Enviar aviso al tutor
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAvisoCliente">
+                <div class="modal-body">
+                    <input type="hidden" id="rem-control-id">
+                    <div id="rem-errores" class="alert alert-danger d-none py-2 px-3 small"></div>
+
+                    <div class="p-2 px-3 rounded mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2"
+                         style="background: rgba(11, 15, 25, 0.75); border: 1px solid var(--pc-border);">
+                        <div>
+                            <div class="fw-bold text-white" id="rem-resumen-mascota">—</div>
+                            <div class="small text-secondary" id="rem-resumen-tutor">—</div>
+                        </div>
+                        <span id="rem-resumen-badge" class="badge text-bg-warning">Próxima</span>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-4">
+                            <button type="button" class="pc-channel-btn active" data-canal="EMAIL">
+                                <i class="bi bi-envelope-fill fs-5 d-block mb-1 text-info"></i>
+                                <span class="fw-semibold small">Correo</span>
+                            </button>
+                        </div>
+                        <div class="col-4">
+                            <button type="button" class="pc-channel-btn" data-canal="WHATSAPP">
+                                <i class="bi bi-whatsapp fs-5 d-block mb-1 text-success"></i>
+                                <span class="fw-semibold small">WhatsApp</span>
+                            </button>
+                        </div>
+                        <div class="col-4">
+                            <button type="button" class="pc-channel-btn" data-canal="SMS">
+                                <i class="bi bi-telephone-outbound-fill fs-5 d-block mb-1 text-warning"></i>
+                                <span class="fw-semibold small">SMS</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small text-secondary" id="rem-destinatario-label">Correo *</label>
+                            <input type="text" class="form-control" id="rem-destinatario" required>
+                        </div>
+                        <div class="col-md-6" id="rem-asunto-group">
+                            <label class="form-label small text-secondary">Asunto</label>
+                            <input type="text" class="form-control" id="rem-asunto">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small text-secondary">Mensaje al tutor *</label>
+                            <textarea class="form-control" id="rem-mensaje" rows="3" required></textarea>
+                        </div>
+                    </div>
+
+                    <div id="rem-telefono-directo" class="alert alert-success d-none mt-3 mb-0 py-2 px-3">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <span class="small" id="rem-telefono-texto">Aviso registrado.</span>
+                            <div class="d-flex gap-2">
+                                <a id="rem-link-whatsapp" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-success d-none">
+                                    <i class="bi bi-whatsapp me-1"></i>Abrir WhatsApp
+                                </a>
+                                <a id="rem-link-sms" href="#" class="btn btn-sm btn-outline-light d-none">
+                                    <i class="bi bi-chat-dots me-1"></i>Abrir SMS
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="submit" class="btn btn-pc-emerald">
+                        <i class="bi bi-send-fill me-1"></i>Enviar aviso
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL BOTAR A LA BASURA -->
+<div class="modal fade" id="modalEliminarAviso" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-color: rgba(239, 68, 68, 0.45);">
+            <div class="modal-header">
+                <h5 class="modal-title text-white"><i class="bi bi-trash3-fill text-danger me-2"></i>Botar vacuna a la basura</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="del-control-id">
+                <div class="p-3 rounded mb-2" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);">
+                    <div class="fw-bold text-white" id="del-resumen-nombre">—</div>
+                    <div class="small text-secondary" id="del-resumen-detalle">—</div>
+                </div>
+                <p class="small text-secondary mb-0">Se eliminará este vencimiento del tablero.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btn-confirmar-eliminar">Sí, botar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const modalAviso = new bootstrap.Modal(document.getElementById("modalAvisoCliente"));
+    const modalEliminar = new bootstrap.Modal(document.getElementById("modalEliminarAviso"));
+
+    let estado = { todos: [], historial: [], criticas: 0, vencidas: 0 };
+    let filtro = "PRIORITARIOS";
+    let canalActual = "EMAIL";
+    let ctrlActual = null;
+    let relojTimer = null;
+
+    const fmtCL = (iso) => {
+        if (!iso) return "—";
+        const p = String(iso).split("-");
+        return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : iso;
+    };
+    const iconEspecie = (c) => (c === "CANINO" ? "🐕" : (c === "FELINO" ? "🐈" : "🦜"));
+    const pad2 = (n) => String(n).padStart(2, "0");
+    const esc = (s) => PetCare.escapeHtml(s == null ? "" : String(s));
+
+    function actualizarRelojes() {
+        document.querySelectorAll("[data-reloj-iso]").forEach((el) => {
+            const [y, m, d] = el.dataset.relojIso.split("-").map(Number);
+            const fin = new Date(y, m - 1, d, 23, 59, 59).getTime();
+            const seg = Math.max(0, Math.floor((fin - Date.now()) / 1000));
+            el.textContent = `${pad2(Math.floor((seg % 86400) / 3600))}h ${pad2(Math.floor((seg % 3600) / 60))}m ${pad2(seg % 60)}s`;
+        });
+    }
+
+    function tarjeta(c) {
+        const dias = c.dias_para_vencer;
+        const vencida = c.semaforo === "VENCIDA";
+        const critica = c.semaforo === "CRITICA";
+        const tono = vencida ? "tone-vencida" : (critica ? "tone-critica" : "");
+        const chip = vencida ? "Vencida" : (critica ? "Vence esta semana" : "Al día");
+
+        let numHtml, labelHtml, relojHtml = "";
+        if (vencida) {
+            numHtml = `<div class="pc-aviso-num">${Math.abs(dias)}</div>`;
+            labelHtml = `${Math.abs(dias) === 1 ? "día" : "días"} de atraso`;
+        } else if (dias === 0) {
+            numHtml = `<div class="pc-aviso-num is-hoy">HOY</div>`;
+            labelHtml = "vence hoy";
+            relojHtml = `<div class="pc-aviso-reloj" data-reloj-iso="${esc(c.fecha_proximo_vencimiento)}"></div>`;
+        } else {
+            numHtml = `<div class="pc-aviso-num">${dias}</div>`;
+            labelHtml = dias === 1 ? "día restante" : "días restantes";
+            relojHtml = `<div class="pc-aviso-reloj" data-reloj-iso="${esc(c.fecha_proximo_vencimiento)}"></div>`;
+        }
+
+        const ultimo = c.ultimo_recordatorio
+            ? `<span class="text-info"><i class="bi bi-check2-all me-1"></i>Último aviso: ${esc(c.ultimo_recordatorio.canal_display)} · ${esc(c.ultimo_recordatorio.creado_en)}</span>`
+            : `<span class="text-secondary"><i class="bi bi-clock me-1"></i>Sin aviso enviado</span>`;
+
+        return `
+            <article class="pc-aviso-card ${tono}">
+                <div class="pc-aviso-top">
+                    <span class="pc-aviso-especie">${iconEspecie(c.mascota_especie_codigo)}</span>
+                    <span class="pc-aviso-chip">${chip}</span>
+                </div>
+
+                <div class="pc-aviso-contador">
+                    ${numHtml}
+                    <div class="pc-aviso-num-label">${labelHtml}</div>
+                    ${relojHtml}
+                </div>
+
+                <div class="pc-aviso-mascota">${esc(c.mascota_nombre)}</div>
+                <div class="pc-aviso-vacuna">${esc(c.nombre_producto)}</div>
+                <div class="pc-aviso-fecha"><i class="bi bi-calendar-event me-1"></i>Vence el ${fmtCL(c.fecha_proximo_vencimiento)}</div>
+
+                <div class="pc-aviso-tutor">
+                    <span class="contacto"><i class="bi bi-person-fill me-1"></i><strong>${esc(c.tutor_nombre)}</strong></span>
+                    <span class="contacto"><i class="bi bi-telephone me-1"></i>${esc(c.tutor_telefono || "Sin teléfono")}</span>
+                    <span class="contacto"><i class="bi bi-envelope me-1"></i>${esc(c.tutor_email || "Sin correo")}</span>
+                </div>
+
+                <div class="pc-aviso-estado">${ultimo}</div>
+
+                <div class="pc-aviso-acciones">
+                    <button type="button" class="pc-accion-btn correo js-avisar" data-id="${c.id}" data-canal="EMAIL" title="Avisar por correo">
+                        <i class="bi bi-envelope-fill"></i>Correo
+                    </button>
+                    <button type="button" class="pc-accion-btn whatsapp js-avisar" data-id="${c.id}" data-canal="WHATSAPP" title="Avisar por WhatsApp">
+                        <i class="bi bi-whatsapp"></i>WhatsApp
+                    </button>
+                    <button type="button" class="pc-accion-btn sms js-avisar" data-id="${c.id}" data-canal="SMS" title="Avisar por SMS">
+                        <i class="bi bi-telephone-outbound-fill"></i>SMS
+                    </button>
+                    <button type="button" class="pc-accion-btn botar js-botar" data-id="${c.id}" title="Botar a la basura">
+                        <i class="bi bi-trash3-fill"></i>Botar
+                    </button>
+                </div>
+            </article>
+        `;
+    }
+
+    function renderLista() {
+        const q = document.getElementById("buscador-avisos").value.trim().toLowerCase();
+        const orden = document.getElementById("orden-avisos").value;
+        const cont = document.getElementById("lista-avisos-clientes");
+
+        const items = estado.todos.filter((item) => {
+            if (filtro === "PRIORITARIOS" && !["CRITICA", "VENCIDA"].includes(item.semaforo)) return false;
+            if (["CRITICA", "VENCIDA"].includes(filtro) && item.semaforo !== filtro) return false;
+            if (q) {
+                const text = `${item.tutor_nombre} ${item.tutor_email} ${item.tutor_telefono} ${item.mascota_nombre} ${item.nombre_producto}`.toLowerCase();
+                if (!text.includes(q)) return false;
+            }
+            return true;
+        });
+
+        items.sort((a, b) => (orden === "URGENTE" ? 1 : -1) * (a.dias_para_vencer - b.dias_para_vencer));
+
+        if (items.length === 0) {
+            cont.innerHTML = `
+                <div class="pc-card p-5 text-center">
+                    <i class="bi bi-check2-circle fs-1 text-success d-block mb-2"></i>
+                    <h6 class="text-white mb-1">No hay avisos pendientes en esta vista</h6>
+                    <p class="text-secondary small mb-0">Todos los tutores de esta categoría están al día.</p>
+                </div>
+            `;
+            return;
+        }
+
+        cont.innerHTML = `<div class="pc-avisos-grid">${items.map(tarjeta).join("")}</div>`;
+        actualizarRelojes();
+    }
+
+    function renderHistorial() {
+        const tbody = document.getElementById("tbody-historial-avisos");
+        if (!estado.historial.length) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-secondary py-3">Sin avisos enviados aún.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = estado.historial.map((n) => `
+            <tr>
+                <td class="small text-secondary">${esc(n.creado_en ? new Date(n.creado_en).toLocaleString("es-CL") : "—")}</td>
+                <td class="small fw-semibold text-white">${esc(n.tutor_nombre)}</td>
+                <td class="small"><span class="text-light">${esc(n.mascota_nombre)}</span> · <span class="text-info">${esc(n.nombre_producto)}</span></td>
+                <td><span class="badge ${n.canal === "EMAIL" ? "bg-info bg-opacity-15 text-info" : "bg-success bg-opacity-15 text-success"}">${esc(n.canal_display)}</span></td>
+                <td class="small">${esc(n.destinatario)}</td>
+                <td><span class="badge text-bg-secondary">${esc(n.estado_envio)}</span></td>
+                <td class="small text-secondary">${esc(n.enviado_por_nombre)}</td>
+            </tr>
+        `).join("");
+    }
+
+    async function cargarAvisos() {
+        try {
+            const d = await PetCare.apiFetch("/api/controles-vacunas/recordatorios/");
+            const todos = [...(d.criticas || []), ...(d.vencidas || []), ...(d.al_dia || [])];
+            estado = {
+                todos,
+                historial: d.historial_notificaciones || [],
+                criticas: (d.resumen && d.resumen.criticas) || 0,
+                vencidas: (d.resumen && d.resumen.vencidas) || 0,
+            };
+            const alDia = (d.resumen && d.resumen.al_dia) || 0;
+
+            document.getElementById("titulo-alertas-proximidad").textContent =
+                `Alertas de proximidad: ${estado.criticas} vacuna${estado.criticas === 1 ? "" : "s"} ${estado.criticas === 1 ? "vence" : "vencen"} esta semana`;
+            document.getElementById("badge-criticas").textContent = `${estado.criticas} esta semana`;
+            document.getElementById("badge-vencidas").textContent = `${estado.vencidas} vencidas`;
+            document.getElementById("badge-enviados").textContent = `${estado.historial.length} avisos enviados`;
+
+            document.getElementById("cnt-prioritarios").textContent = estado.criticas + estado.vencidas;
+            document.getElementById("cnt-criticas").textContent = estado.criticas;
+            document.getElementById("cnt-vencidas").textContent = estado.vencidas;
+            document.getElementById("cnt-todas").textContent = estado.criticas + estado.vencidas + alDia;
+
+            renderLista();
+            renderHistorial();
+
+            if (relojTimer) clearInterval(relojTimer);
+            relojTimer = setInterval(actualizarRelojes, 1000);
+        } catch (err) {
+            PetCare.toast(err.message || "Error al cargar avisos.", "danger");
+        }
+    }
+
+    document.querySelectorAll("#filtros-avisos .pc-filter-pill").forEach((b) => {
+        b.addEventListener("click", () => {
+            document.querySelectorAll("#filtros-avisos .pc-filter-pill").forEach((x) => x.classList.remove("active"));
+            b.classList.add("active");
+            filtro = b.dataset.filter;
+            renderLista();
+        });
+    });
+
+    document.getElementById("buscador-avisos").addEventListener("input", renderLista);
+    document.getElementById("orden-avisos").addEventListener("change", renderLista);
+    document.getElementById("btn-recargar-avisos").addEventListener("click", cargarAvisos);
+
+    function setCanal(canal) {
+        canalActual = canal;
+        document.querySelectorAll(".pc-channel-btn").forEach((b) => b.classList.toggle("active", b.dataset.canal === canal));
+        if (!ctrlActual) return;
+        const lbl = document.getElementById("rem-destinatario-label");
+        const inp = document.getElementById("rem-destinatario");
+        const asu = document.getElementById("rem-asunto-group");
+        if (canal === "EMAIL") {
+            lbl.textContent = "Correo electrónico *";
+            inp.value = ctrlActual.tutor_email || "";
+            asu.classList.remove("d-none");
+        } else {
+            lbl.textContent = "Teléfono del tutor *";
+            inp.value = ctrlActual.tutor_telefono || "";
+            asu.classList.add("d-none");
+        }
+    }
+    document.querySelectorAll(".pc-channel-btn").forEach((b) => b.addEventListener("click", () => setCanal(b.dataset.canal)));
+
+    document.addEventListener("click", (e) => {
+        const av = e.target.closest(".js-avisar");
+        if (av) {
+            ctrlActual = estado.todos.find((x) => Number(x.id) === Number(av.dataset.id));
+            if (!ctrlActual) return;
+            document.getElementById("rem-control-id").value = ctrlActual.id;
+            document.getElementById("rem-errores").classList.add("d-none");
+            document.getElementById("rem-telefono-directo").classList.add("d-none");
+            document.getElementById("rem-resumen-mascota").textContent = `${iconEspecie(ctrlActual.mascota_especie_codigo)} ${ctrlActual.mascota_nombre} — ${ctrlActual.nombre_producto}`;
+            document.getElementById("rem-resumen-tutor").textContent = `Tutor: ${ctrlActual.tutor_nombre} · Fecha: ${fmtCL(ctrlActual.fecha_proximo_vencimiento)}`;
+            const badge = document.getElementById("rem-resumen-badge");
+            badge.className = ctrlActual.semaforo === "VENCIDA" ? "badge text-bg-danger" : "badge text-bg-warning";
+            badge.textContent = ctrlActual.dias_para_vencer < 0 ? `Vencida hace ${Math.abs(ctrlActual.dias_para_vencer)} días` : `Faltan ${ctrlActual.dias_para_vencer} días`;
+
+            const txtPlazo = ctrlActual.dias_para_vencer >= 0 && ctrlActual.dias_para_vencer <= 7
+                ? `se avecina en una semana (${fmtCL(ctrlActual.fecha_proximo_vencimiento)})`
+                : (ctrlActual.dias_para_vencer < 0 ? `venció el ${fmtCL(ctrlActual.fecha_proximo_vencimiento)}` : `vence el ${fmtCL(ctrlActual.fecha_proximo_vencimiento)}`);
+            document.getElementById("rem-asunto").value = `Aviso PetCare: Próxima vacuna de ${ctrlActual.mascota_nombre}`;
+            document.getElementById("rem-mensaje").value = `Hola ${ctrlActual.tutor_nombres || ctrlActual.tutor_nombre}, desde Clínica Veterinaria PetCare te avisamos que la próxima vacuna "${ctrlActual.nombre_producto}" de ${ctrlActual.mascota_nombre} ${txtPlazo}.`;
+            setCanal(av.dataset.canal || "EMAIL");
+            modalAviso.show();
+            return;
+        }
+
+        const bot = e.target.closest(".js-botar");
+        if (bot) {
+            const c = estado.todos.find((x) => Number(x.id) === Number(bot.dataset.id));
+            if (!c) return;
+            document.getElementById("del-control-id").value = c.id;
+            document.getElementById("del-resumen-nombre").textContent = `${c.mascota_nombre} — ${c.nombre_producto}`;
+            document.getElementById("del-resumen-detalle").textContent = `Tutor: ${c.tutor_nombre} · Próxima fecha: ${fmtCL(c.fecha_proximo_vencimiento)}`;
+            modalEliminar.show();
+        }
+    });
+
+    document.getElementById("formAvisoCliente").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errBox = document.getElementById("rem-errores");
+        errBox.classList.add("d-none");
+        const id = document.getElementById("rem-control-id").value;
+        try {
+            const resp = await PetCare.apiFetch(`/api/controles-vacunas/${id}/enviar-recordatorio/`, {
+                method: "POST",
+                body: {
+                    canal: canalActual,
+                    destinatario: document.getElementById("rem-destinatario").value.trim(),
+                    asunto: document.getElementById("rem-asunto").value.trim(),
+                    mensaje: document.getElementById("rem-mensaje").value.trim(),
+                },
+            });
+            PetCare.toast(resp.detalle_envio || "Aviso enviado al cliente.", "success");
+            if (resp.whatsapp_url || resp.tel_url) {
+                document.getElementById("rem-telefono-texto").textContent = resp.detalle_envio;
+                const wa = document.getElementById("rem-link-whatsapp");
+                const sms = document.getElementById("rem-link-sms");
+                wa.classList.toggle("d-none", !resp.whatsapp_url);
+                if (resp.whatsapp_url) wa.href = resp.whatsapp_url;
+                sms.classList.toggle("d-none", !resp.tel_url);
+                if (resp.tel_url) sms.href = resp.tel_url;
+                document.getElementById("rem-telefono-directo").classList.remove("d-none");
+            } else {
+                modalAviso.hide();
+            }
+            await cargarAvisos();
+        } catch (err) {
+            errBox.textContent = err.message;
+            errBox.classList.remove("d-none");
+        }
+    });
+
+    document.getElementById("btn-confirmar-eliminar").addEventListener("click", async () => {
+        const id = document.getElementById("del-control-id").value;
+        if (!id) return;
+        try {
+            await PetCare.apiFetch(`/api/controles-vacunas/${id}/`, { method: "DELETE" });
+            modalEliminar.hide();
+            PetCare.toast("Vacuna botada a la basura.", "success");
+            await cargarAvisos();
+        } catch (err) {
+            PetCare.toast(err.message || "No se pudo eliminar.", "danger");
+        }
+    });
+
+    cargarAvisos();
+});
+</script>
+{% endblock %}
