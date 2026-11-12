@@ -80,11 +80,12 @@ class Command(BaseCommand):
         usuarios = {}
         for cfg in usuarios_cfg:
             username = cfg["username"]
-            user, creado = Usuario.objects.update_or_create(
-                username=username,
-                defaults={k: v for k, v in cfg.items() if k != "username"},
+            user = (
+                Usuario.objects.filter(username=username).first()
+                or Usuario.objects.filter(email__iexact=cfg["email"]).first()
             )
-            if creado or not user.check_password(clave_demo):
+            if user is None:
+                user = Usuario(**cfg)
                 user.set_password(clave_demo)
                 user.save()
             usuarios[username] = user
