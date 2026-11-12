@@ -258,6 +258,9 @@
       alergias: document.getElementById("mascota-alergias").value.trim(),
       observaciones: document.getElementById("mascota-observaciones").value.trim(),
     };
+    if (!id) {
+      datos.activo = true;
+    }
 
     let bodyPayload = datos;
     if (archivoFoto) {

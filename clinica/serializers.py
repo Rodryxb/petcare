@@ -186,13 +186,19 @@ class MascotaSerializer(serializers.ModelSerializer):
         )
 
     def to_internal_value(self, data):
-        # En envíos multipart/form-data los campos vacíos llegan como "";
-        # se normalizan a None para que DateField/DecimalField/IntegerField acepten vacío opcional.
+        # En envíos multipart/form-data (QueryDict) los campos vacíos llegan como "";
+        # se normalizan a None y se preserva `activo=True` en altas porque DRF
+        # interpreta un BooleanField omitido en QueryDict como False.
         if hasattr(data, "copy"):
             mutable = data.copy()
             for campo in ("fecha_nacimiento", "peso", "condicion_corporal"):
                 if campo in mutable and mutable[campo] == "":
                     mutable[campo] = None
+            if "activo" not in mutable:
+                if self.instance is None:
+                    mutable["activo"] = True
+                elif not self.partial:
+                    mutable["activo"] = self.instance.activo
             data = mutable
         return super().to_internal_value(data)
 

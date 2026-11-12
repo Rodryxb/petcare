@@ -487,6 +487,14 @@ class MascotaFichaDetalladaTests(SimpleTestCase):
         self.assertIsNone(interna["peso"])
         self.assertIsNone(interna["condicion_corporal"])
 
+        # Simula alta multipart/form-data (con foto y sin "activo"): debe quedar activo=True
+        qd_alta = QueryDict(mutable=True)
+        qd_alta.update({"nombre": "Myke", "especie": "CANINO", "sexo": "MACHO"})
+        ser_alta = MascotaSerializer(data=qd_alta)
+        ser_alta.fields["tutor"].required = False
+        interna_alta = ser_alta.to_internal_value(qd_alta)
+        self.assertTrue(interna_alta["activo"])
+
     def test_condicion_corporal_rango_valido(self):
         mascota = Mascota(nombre="Luna", especie=Mascota.Especie.FELINO, sexo=Mascota.Sexo.HEMBRA, condicion_corporal=6)
         with self.assertRaises(ValidationError) as ctx:
