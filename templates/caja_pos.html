@@ -375,7 +375,7 @@
       </thead>
       <tbody id="tbody-historial-boletas">
         {% for b in ultimas_boletas %}
-        <tr>
+        <tr data-orden-id="{{ b.id }}">
           <td class="font-monospace fw-bold text-info">{{ b.numero_boleta }}</td>
           <td class="small text-secondary">{{ b.creado_en|date:"d/m/Y H:i" }}</td>
           <td>
@@ -399,7 +399,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr>
+        <tr id="fila-historial-vacio">
           <td colspan="7" class="text-center py-4 text-secondary">Aún no se han emitido boletas en esta sesión.</td>
         </tr>
         {% endfor %}
@@ -1175,6 +1175,14 @@
       items: carritoPos.map((i) => ({ producto_id: i.producto_id, cantidad: i.cantidad })),
     };
 
+    const btnAutorizar = document.getElementById("btn-autorizar-pago");
+    if (btnAutorizar?.disabled) return;
+    const textoOriginalBtn = btnAutorizar ? btnAutorizar.innerHTML : "";
+    if (btnAutorizar) {
+      btnAutorizar.disabled = true;
+      btnAutorizar.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Procesando...';
+    }
+
     try {
       const orden = await PetCare.apiFetch("/api/ordenes-pago/", {
         method: "POST",
@@ -1183,12 +1191,68 @@
       sonarBeepScanner(true);
       modalTerminalInst.hide();
       vaciarCarritoPos();
+      agregarOrdenAHistorialPos(orden);
       await cargarCatalogoPos();
       mostrarBoletaEmitida(orden);
       PetCare.toast(`Pago aprobado (${orden.codigo_autorizacion}). Boleta ${orden.numero_boleta} emitida.`, "success");
     } catch (err) {
       alerta.textContent = err.message;
       alerta.classList.remove("d-none");
+    } finally {
+      if (btnAutorizar) {
+        btnAutorizar.disabled = false;
+        btnAutorizar.innerHTML = textoOriginalBtn;
+      }
+    }
+  }
+
+  function formatoFechaHoraBoleta(isoStr) {
+    const fecha = isoStr ? new Date(isoStr) : new Date();
+    if (Number.isNaN(fecha.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(fecha.getDate())}/${pad(fecha.getMonth() + 1)}/${fecha.getFullYear()} ${pad(fecha.getHours())}:${pad(fecha.getMinutes())}`;
+  }
+
+  function agregarOrdenAHistorialPos(orden) {
+    const tbody = document.getElementById("tbody-historial-boletas");
+    if (!tbody || !orden || !orden.id) return;
+
+    document.getElementById("fila-historial-vacio")?.remove();
+    const existente = tbody.querySelector(`tr[data-orden-id="${orden.id}"]`);
+    if (existente) existente.remove();
+
+    const mascotaHtml = orden.mascota && orden.mascota_nombre && orden.mascota_nombre !== "—"
+      ? `<small class="text-info">🐾 ${PetCare.escapeHtml(orden.mascota_nombre)}</small>`
+      : "";
+    const tarjetaHtml = orden.ultimos_4_digitos
+      ? `<small class="text-secondary font-monospace ms-1">${PetCare.escapeHtml(orden.marca_tarjeta)} •••• ${PetCare.escapeHtml(orden.ultimos_4_digitos)} (${Number(orden.cuotas || 1)}c)</small>`
+      : "";
+
+    const tr = document.createElement("tr");
+    tr.dataset.ordenId = String(orden.id);
+    tr.innerHTML = `
+      <td class="font-monospace fw-bold text-info">${PetCare.escapeHtml(orden.numero_boleta)}</td>
+      <td class="small text-secondary">${PetCare.escapeHtml(formatoFechaHoraBoleta(orden.creado_en))}</td>
+      <td>
+        <div class="text-white fw-semibold">${PetCare.escapeHtml(orden.tutor_nombre || "Cliente Presencial")}</div>
+        ${mascotaHtml}
+      </td>
+      <td>
+        <span class="badge text-bg-dark border border-info-subtle">${PetCare.escapeHtml(orden.metodo_pago_display || orden.metodo_pago)}</span>
+        ${tarjetaHtml}
+      </td>
+      <td class="font-monospace small text-success">${PetCare.escapeHtml(orden.codigo_autorizacion)}</td>
+      <td class="text-end fw-bold text-white font-monospace">${formatoCLP(orden.total)}</td>
+      <td class="text-end">
+        <button type="button" class="btn btn-sm btn-outline-info" onclick="verBoletaPorId(${Number(orden.id)})">
+          <i class="bi bi-printer me-1"></i>Ver Boleta
+        </button>
+      </td>
+    `;
+    tbody.prepend(tr);
+
+    while (tbody.children.length > 20) {
+      tbody.lastElementChild.remove();
     }
   }
 
