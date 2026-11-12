@@ -104,7 +104,7 @@ class TutorViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = (
-            Tutor.objects.annotate(total_mascotas=Count("mascotas"))
+            Tutor.objects.annotate(total_mascotas=Count("mascotas", filter=Q(mascotas__activo=True)))
             .prefetch_related("mascotas")
             .order_by("apellidos", "nombres")
         )
@@ -809,17 +809,18 @@ def tutores_mascotas_view(request):
     con buscador dinámico en tiempo real y modales asíncronos (Fetch API).
     """
     tutores = (
-        Tutor.objects.annotate(total_mascotas=Count("mascotas"))
+        Tutor.objects.filter(activo=True)
+        .annotate(total_mascotas=Count("mascotas", filter=Q(mascotas__activo=True)))
         .prefetch_related("mascotas")
         .order_by("apellidos", "nombres")[:200]
     )
-    mascotas = Mascota.objects.select_related("tutor").order_by("nombre")[:200]
+    mascotas = Mascota.objects.filter(activo=True).select_related("tutor").order_by("nombre")[:200]
     context = {
         "pagina_activa": "tutores_mascotas",
         "tutores": tutores,
         "mascotas": mascotas,
-        "total_tutores": Tutor.objects.count(),
-        "total_mascotas": Mascota.objects.count(),
+        "total_tutores": Tutor.objects.filter(activo=True).count(),
+        "total_mascotas": Mascota.objects.filter(activo=True).count(),
         "especies": Mascota.Especie.choices,
         "sexos": Mascota.Sexo.choices,
         "tipos_control": ControlVacuna.Tipo.choices,

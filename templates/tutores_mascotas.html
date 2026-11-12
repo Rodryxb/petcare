@@ -84,9 +84,11 @@
               </td>
               <td>
                 {% for m in t.mascotas.all %}
-                <a href="{% url 'ficha_clinica_mascota' m.id %}" class="badge rounded-pill text-bg-dark border border-info-subtle text-info text-decoration-none me-1">
-                  🐾 {{ m.nombre }} ({{ m.get_especie_display }})
-                </a>
+                  {% if m.activo %}
+                  <a href="{% url 'ficha_clinica_mascota' m.id %}" class="badge rounded-pill text-bg-dark border border-info-subtle text-info text-decoration-none me-1">
+                    🐾 {{ m.nombre }} ({{ m.get_especie_display }})
+                  </a>
+                  {% endif %}
                 {% empty %}
                 <span class="text-secondary small">Sin mascotas</span>
                 {% endfor %}
@@ -298,17 +300,43 @@
 </div>
 
 {% include "includes/modal_mascota.html" %}
+
+<!-- Modal Confirmación para Eliminar o Dar de Baja -->
+<div class="modal fade" id="modalConfirmarBaja" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold text-white" id="confirmar-baja-titulo">Confirmar Eliminación</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-light small mb-0" id="confirmar-baja-mensaje"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btn-confirmar-baja-accion" onclick="ejecutarConfirmacionBaja()">
+          <i class="bi bi-trash3 me-1"></i>Sí, eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
   let modalTutorInst = null;
   let modalMascotaInst = null;
+  let modalConfirmarBajaInst = null;
   let debounceTimer = null;
+  let guardandoTutor = false;
+  let guardandoMascota = false;
+  let accionBajaPendiente = null;
 
   document.addEventListener("DOMContentLoaded", () => {
     modalTutorInst = new bootstrap.Modal(document.getElementById("modalTutor"));
     modalMascotaInst = new bootstrap.Modal(document.getElementById("modalMascota"));
+    modalConfirmarBajaInst = new bootstrap.Modal(document.getElementById("modalConfirmarBaja"));
 
     const buscador = document.getElementById("buscador-recepcion");
     buscador.addEventListener("input", () => {
@@ -318,14 +346,14 @@
   });
 
   async function recargarDatosRecepcion(termino = "") {
-    const params = new URLSearchParams({ sin_paginar: "1" });
+    const params = new URLSearchParams({ sin_paginar: "1", activo: "true" });
     if (termino) params.set("q", termino);
     const query = `?${params.toString()}`;
     try {
       const [resTutores, resMascotas, todosTutores] = await Promise.all([
         PetCare.apiFetch(`/api/tutores/${query}`),
         PetCare.apiFetch(`/api/mascotas/${query}`),
-        termino ? PetCare.apiFetch(`/api/tutores/?sin_paginar=1`) : Promise.resolve(null),
+        termino ? PetCare.apiFetch(`/api/tutores/?sin_paginar=1&activo=true`) : Promise.resolve(null),
       ]);
       const tutores = resTutores.results || resTutores;
       const mascotas = resMascotas.results || resMascotas;
@@ -351,6 +379,7 @@
     tbody.innerHTML = tutores
       .map((t) => {
         const mascotasHtml = (t.mascotas_resumen || [])
+          .filter((m) => m.activo !== false)
           .map(
             (m) =>
               `<a href="/fichas/mascota/${m.id}/" class="badge rounded-pill text-bg-dark border border-info-subtle text-info text-decoration-none me-1">🐾 ${PetCare.escapeHtml(m.nombre)} (${PetCare.escapeHtml(m.especie_display)})</a>`
@@ -511,6 +540,8 @@
 
   async function guardarTutor(e) {
     e.preventDefault();
+    if (guardandoTutor) return;
+
     const id = document.getElementById("tutor-id").value;
     const alerta = document.getElementById("tutor-alerta");
     alerta.classList.add("d-none");
@@ -533,6 +564,14 @@
       direccion: document.getElementById("tutor-direccion").value.trim(),
     };
 
+    const btn = document.getElementById("btn-guardar-tutor");
+    const htmlOrig = btn ? btn.innerHTML : "";
+    guardandoTutor = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Guardando...`;
+    }
+
     try {
       const url = id ? `/api/tutores/${id}/` : `/api/tutores/`;
       const method = id ? "PATCH" : "POST";
@@ -549,6 +588,7 @@
             raza: document.getElementById("tutor-mascota-raza").value.trim(),
             sexo: document.getElementById("tutor-mascota-sexo").value,
             peso: pesoVal ? pesoVal : null,
+            activo: true,
           },
         });
         PetCare.toast(`Tutor ${tutor.nombre_completo} y su mascota "${nombreMascota}" registrados y listos para agendar.`);
@@ -561,6 +601,12 @@
     } catch (err) {
       alerta.textContent = err.message;
       alerta.classList.remove("d-none");
+    } finally {
+      guardandoTutor = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = htmlOrig;
+      }
     }
   }
 
@@ -568,7 +614,7 @@
     limpiarFormularioMascota();
     document.getElementById("modalMascotaTitulo").textContent = "Registrar Nueva Mascota";
     try {
-      const resTutores = await PetCare.apiFetch("/api/tutores/?sin_paginar=1");
+      const resTutores = await PetCare.apiFetch("/api/tutores/?sin_paginar=1&activo=true");
       const tutores = resTutores.results || resTutores;
       actualizarSelectorTutores(tutores);
     } catch (_) {}
@@ -591,8 +637,18 @@
 
   async function guardarMascota(e) {
     e.preventDefault();
+    if (guardandoMascota) return;
+
     const alerta = document.getElementById("mascota-alerta");
     alerta.classList.add("d-none");
+
+    const btn = document.getElementById("btn-guardar-mascota");
+    const htmlOrig = btn ? btn.innerHTML : "";
+    guardandoMascota = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Guardando...`;
+    }
 
     try {
       const mascota = await enviarFormularioMascota();
@@ -602,71 +658,73 @@
     } catch (err) {
       alerta.textContent = err.message;
       alerta.classList.remove("d-none");
-    }
-  }
-
-  async function eliminarTutor(id, nombre) {
-    if (!confirm(`¿Confirma eliminar al tutor "${nombre}" de la base de datos?`)) {
-      return;
-    }
-    try {
-      await PetCare.apiFetch(`/api/tutores/${id}/`, { method: "DELETE" });
-      PetCare.toast(`Tutor "${nombre}" eliminado correctamente de la base de datos.`, "success");
-      await recargarDatosRecepcion(document.getElementById("buscador-recepcion").value.trim());
-    } catch (err) {
-      if (err.status === 409) {
-        if (
-          confirm(
-            `El tutor "${nombre}" tiene mascotas o registros clínicos asociados y está protegido para no perder historial médico.\n\n¿Desea darlo de baja (inactivar) en su lugar?`
-          )
-        ) {
-          try {
-            await PetCare.apiFetch(`/api/tutores/${id}/`, {
-              method: "PATCH",
-              body: { activo: false },
-            });
-            PetCare.toast(`Tutor "${nombre}" marcado como inactivo en la base de datos.`, "info");
-            await recargarDatosRecepcion(document.getElementById("buscador-recepcion").value.trim());
-          } catch (patchErr) {
-            PetCare.toast(patchErr.message, "danger");
-          }
-        }
-      } else {
-        PetCare.toast(err.message, "danger");
+    } finally {
+      guardandoMascota = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = htmlOrig;
       }
     }
   }
 
-  async function eliminarMascota(id, nombre) {
-    if (!confirm(`¿Confirma eliminar al paciente "${nombre}" de la base de datos?`)) {
-      return;
+  function abrirModalConfirmarBaja({ tipo, id, nombre, forzarInactivar = false }) {
+    accionBajaPendiente = { tipo, id, nombre, forzarInactivar };
+    const titulo = document.getElementById("confirmar-baja-titulo");
+    const msg = document.getElementById("confirmar-baja-mensaje");
+    const btn = document.getElementById("btn-confirmar-baja-accion");
+    const etiqueta = tipo === "tutor" ? "al tutor" : "al paciente";
+
+    if (forzarInactivar) {
+      titulo.textContent = `Dar de baja ${etiqueta}`;
+      msg.textContent = `"${nombre}" posee citas, fichas clínicas o vacunas asociadas y está protegido para conservar su historial médico. ¿Desea darle de baja (ocultar de activos) en su lugar?`;
+      btn.className = "btn btn-warning text-dark fw-semibold";
+      btn.innerHTML = `<i class="bi bi-archive me-1"></i>Dar de baja`;
+    } else {
+      titulo.textContent = `Eliminar ${etiqueta}`;
+      msg.textContent = `¿Confirma eliminar ${etiqueta} "${nombre}" de la base de datos?`;
+      btn.className = "btn btn-danger";
+      btn.innerHTML = `<i class="bi bi-trash3 me-1"></i>Sí, eliminar`;
     }
+    btn.disabled = false;
+    modalConfirmarBajaInst.show();
+  }
+
+  async function ejecutarConfirmacionBaja() {
+    if (!accionBajaPendiente) return;
+    const { tipo, id, nombre, forzarInactivar } = accionBajaPendiente;
+    const endpoint = tipo === "tutor" ? `/api/tutores/${id}/` : `/api/mascotas/${id}/`;
+    const btn = document.getElementById("btn-confirmar-baja-accion");
+    btn.disabled = true;
+
     try {
-      await PetCare.apiFetch(`/api/mascotas/${id}/`, { method: "DELETE" });
-      PetCare.toast(`Paciente "${nombre}" eliminado correctamente de la base de datos.`, "success");
+      if (forzarInactivar) {
+        await PetCare.apiFetch(endpoint, { method: "PATCH", body: { activo: false } });
+        modalConfirmarBajaInst.hide();
+        PetCare.toast(`"${nombre}" dado de baja correctamente.`, "info");
+      } else {
+        await PetCare.apiFetch(endpoint, { method: "DELETE" });
+        modalConfirmarBajaInst.hide();
+        PetCare.toast(`"${nombre}" eliminado correctamente de la base de datos.`, "success");
+      }
       await recargarDatosRecepcion(document.getElementById("buscador-recepcion").value.trim());
     } catch (err) {
-      if (err.status === 409) {
-        if (
-          confirm(
-            `El paciente "${nombre}" posee citas, fichas clínicas o vacunas registradas y está protegido para conservar su trazabilidad médica.\n\n¿Desea darle de baja (inactivar) en su lugar?`
-          )
-        ) {
-          try {
-            await PetCare.apiFetch(`/api/mascotas/${id}/`, {
-              method: "PATCH",
-              body: { activo: false },
-            });
-            PetCare.toast(`Paciente "${nombre}" dado de baja en la base de datos.`, "info");
-            await recargarDatosRecepcion(document.getElementById("buscador-recepcion").value.trim());
-          } catch (patchErr) {
-            PetCare.toast(patchErr.message, "danger");
-          }
-        }
+      if (err.status === 409 && !forzarInactivar) {
+        abrirModalConfirmarBaja({ tipo, id, nombre, forzarInactivar: true });
       } else {
+        modalConfirmarBajaInst.hide();
         PetCare.toast(err.message, "danger");
       }
+    } finally {
+      btn.disabled = false;
     }
+  }
+
+  function eliminarTutor(id, nombre) {
+    abrirModalConfirmarBaja({ tipo: "tutor", id, nombre, forzarInactivar: false });
+  }
+
+  function eliminarMascota(id, nombre) {
+    abrirModalConfirmarBaja({ tipo: "mascota", id, nombre, forzarInactivar: false });
   }
 </script>
 {% endblock %}
